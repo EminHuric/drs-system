@@ -1083,7 +1083,10 @@ onMounted(loadRestaurant)
                nekome ko zna šta traži. -->
           <TransitionGroup name="sec" tag="div" class="secs">
             <section v-for="c in shownSections" :key="c.id" class="sec">
-              <h2 class="sec-title">{{ c.name }}</h2>
+              <h2 class="sec-title">
+                {{ c.name }}
+                <span class="sec-n">{{ c.items.length }}</span>
+              </h2>
               <div class="grid">
                 <DishRow
                   v-for="it in c.items"
@@ -2174,14 +2177,31 @@ onMounted(loadRestaurant)
   padding: var(--s5) var(--s4) 0;
 }
 .sec {
-  margin-bottom: var(--s7);
-  scroll-margin-top: 140px;
+  margin-bottom: var(--s6);
 }
+/* Naslov kategorije nosi liniju do kraja reda — deli meni na
+   celine bez debelih pregrada i praznog hoda. */
 .sec-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
   font-family: var(--font-display, var(--font));
   font-size: var(--fs-lg);
-  margin-bottom: var(--s4);
-  letter-spacing: -0.02em;
+  margin-bottom: var(--s3);
+  letter-spacing: -0.025em;
+}
+.sec-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.sec-n {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  color: var(--faint);
+  font-family: var(--font);
+  letter-spacing: 0;
 }
 
 /* ── mreža jela ──────────────────────────────────────
@@ -2191,11 +2211,12 @@ onMounted(loadRestaurant)
 .grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--s3);
+  gap: 9px;
 }
 @media (min-width: 760px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s3);
   }
 }
 

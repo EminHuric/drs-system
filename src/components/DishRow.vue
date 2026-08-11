@@ -1,11 +1,14 @@
 <script setup>
 // ─────────────────────────────────────────────────────────────
-//  Jelo u meniju — jedan red, puna širina
+//  Jelo u meniju — jedan red, krupna fotografija
 //
-//  Dve kolone na telefonu daju svakom jelu oko 160px: naziv se
-//  prelomi, opis se ne pročita, za oznake nema mesta. Red preko
-//  cele širine daje naziv u punoj veličini, dva reda opisa, red
-//  oznaka i krupnu cenu — a slika od 108px i dalje prodaje jelo.
+//  Fotografija je kvadrat, ne kolona rastegnuta na visinu kartice:
+//  rastegnuta kolona je sekla široke fotografije u portret i od
+//  tanjira ostajala trećina. Kvadrat seče podjednako sa obe strane
+//  i jelo se vidi celo.
+//
+//  Slika stoji levo jer hranu prodaje slika — gost je vidi prvu,
+//  a cena i „＋" ostaju desno, pod palcem.
 // ─────────────────────────────────────────────────────────────
 
 import { money } from '@/lib/format'
@@ -22,7 +25,26 @@ const emit = defineEmits(['open', 'add'])
 </script>
 
 <template>
-  <button class="dish" @click="emit('open', item)">
+  <!--
+    Namerno <div role="button">, a ne <button>: Chrome sadržaj dugmeta
+    meri po najširem redu i ne da mu da se skupi, pa je naziv jela
+    bežao van kartice na uskom ekranu. Tastatura radi isto preko
+    role/tabindex/keydown.
+  -->
+  <div
+    class="dish"
+    role="button"
+    tabindex="0"
+    @click="emit('open', item)"
+    @keydown.enter="emit('open', item)"
+    @keydown.space.prevent="emit('open', item)"
+  >
+    <span class="dish-photo">
+      <img v-if="item.image" :src="item.image" :alt="item.name" loading="lazy" decoding="async" />
+      <span v-else class="dish-fallback">{{ item.emoji || '🍽️' }}</span>
+      <span v-if="qty" class="dish-qty">{{ qty }}</span>
+    </span>
+
     <span class="dish-body">
       <span v-if="tags.length" class="dish-tags">
         <span v-for="t in tags" :key="t.id" class="dtag" :class="'t-' + (t.tone || 'plain')">
@@ -54,86 +76,146 @@ const emit = defineEmits(['open', 'add'])
         >＋</span>
       </span>
     </span>
-
-    <span class="dish-photo">
-      <img v-if="item.image" :src="item.image" :alt="item.name" loading="lazy" />
-      <span v-else class="dish-fallback">{{ item.emoji || '🍽️' }}</span>
-      <span v-if="qty" class="dish-qty">{{ qty }}</span>
-    </span>
-  </button>
+  </div>
 </template>
 
 <style scoped>
 .dish {
   display: flex;
-  align-items: stretch;
-  gap: 0;
-  min-height: 118px;
-  border-radius: var(--r-md);
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 22px;
   background: var(--surface);
-  overflow: hidden;
+  border: 1px solid var(--line);
   text-align: left;
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--fast), box-shadow var(--fast);
+  cursor: pointer;
+  transition: border-color var(--fast), box-shadow var(--fast), transform var(--fast);
+}
+.dish:focus-visible {
+  outline: 2px solid var(--b);
+  outline-offset: 2px;
 }
 .dish:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--b) 35%, var(--line));
+  box-shadow: 0 12px 30px -22px rgba(0, 0, 0, 0.55);
+  transform: translateY(-1px);
 }
 .dish:active {
-  transform: scale(0.99);
+  transform: scale(0.994);
 }
 .dish:hover .dish-photo img {
-  transform: scale(1.06);
+  transform: scale(1.05);
+}
+
+/* ── fotografija ──────────────────────────────────────
+   Kvadrat koji raste sa ekranom: na uskom telefonu ne guta
+   tekst, na širokom se ne pretvori u sličicu. */
+.dish-photo {
+  position: relative;
+  width: 124px;
+  aspect-ratio: 1;
+  flex: none;
+  align-self: center;
+  border-radius: 17px;
+  overflow: hidden;
+  background: var(--surface-3);
+  display: grid;
+  place-items: center;
+}
+.dish-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition: transform 0.55s var(--ease);
+}
+/* Tanka unutrašnja ivica — fotografija dobija okvir i ne curi
+   u pozadinu kartice kad su joj ivice svetle. */
+.dish-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
+  pointer-events: none;
+}
+
+/* Bez fotografije: topla podloga u boji lokala umesto sive rupe. */
+.dish-fallback {
+  font-size: 2.6rem;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.18));
+}
+.dish-photo:has(.dish-fallback) {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--b) 20%, var(--surface)), var(--surface-3));
+}
+
+.dish-qty {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 /* ── tekst ── */
 .dish-body {
   flex: 1;
   min-width: 0;
+  align-self: stretch;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: var(--s3) var(--s3) var(--s3) var(--s4);
+  gap: 3px;
+  padding: 2px var(--s2) 2px 0;
 }
 
 .dish-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-bottom: 1px;
+  margin-bottom: 2px;
 }
 .dtag {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 3px 8px;
+  padding: 2.5px 7px;
   border-radius: var(--r-full);
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 750;
-  letter-spacing: -0.005em;
+  letter-spacing: 0.005em;
   white-space: nowrap;
   background: var(--surface-2);
   color: var(--muted);
 }
 .t-gold {
-  background: color-mix(in srgb, #d9a441 16%, transparent);
-  color: #a97b19;
+  background: color-mix(in srgb, #d9a441 15%, transparent);
+  color: #9d7317;
 }
 .t-hot {
-  background: color-mix(in srgb, #e2603f 15%, transparent);
-  color: #c04a2c;
+  background: color-mix(in srgb, #e2603f 14%, transparent);
+  color: #bd472a;
 }
 .t-green {
-  background: color-mix(in srgb, #3aa76d 15%, transparent);
-  color: #2c8154;
+  background: color-mix(in srgb, #3aa76d 14%, transparent);
+  color: #2a7b50;
 }
 .t-new {
-  background: color-mix(in srgb, #4a7dd6 15%, transparent);
-  color: #3963ad;
+  background: color-mix(in srgb, #4a7dd6 14%, transparent);
+  color: #365ea6;
 }
 .t-brand {
-  background: color-mix(in srgb, var(--b) 15%, transparent);
+  background: color-mix(in srgb, var(--b) 14%, transparent);
   color: var(--b);
 }
 /* U tamnoj temi tamna slova na tamnoj podlozi se ne vide. */
@@ -151,15 +233,20 @@ const emit = defineEmits(['open', 'add'])
 }
 
 .dish-name {
-  font-size: var(--fs-md);
+  font-size: 1.02rem;
   font-weight: 680;
-  line-height: 1.25;
-  letter-spacing: -0.016em;
+  line-height: 1.24;
+  letter-spacing: -0.018em;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .dish-desc {
-  font-size: var(--fs-xs);
+  font-size: 0.78rem;
   color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.42;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -170,14 +257,11 @@ const emit = defineEmits(['open', 'add'])
 .dish-specs {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
   margin-top: 1px;
-}
-.dish-specs > span {
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 600;
   color: var(--faint);
-  white-space: nowrap;
 }
 .dish-specs > span + span::before {
   content: '·';
@@ -189,97 +273,60 @@ const emit = defineEmits(['open', 'add'])
   align-items: center;
   gap: 7px;
   margin-top: auto;
-  padding-top: var(--s2);
+  padding-top: 8px;
 }
 .dish-price {
-  font-size: var(--fs-md);
+  font-size: 1.06rem;
   font-weight: 800;
-  letter-spacing: -0.028em;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
 .dish-old {
-  font-size: var(--fs-xs);
+  font-size: 0.74rem;
   color: var(--faint);
-  margin-right: auto;
-}
-.dish-price:last-of-type {
-  margin-right: auto;
 }
 
-/* Dugme stoji uz cenu, ne preko fotografije — slika ostaje čista. */
+/* Dugme stoji uz cenu, ne preko fotografije — slika ostaje čista.
+   `margin-left: auto` ga drži uz desnu ivicu i kad stara cena
+   postoji i kad je nema. */
 .dish-add {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   flex: none;
+  margin-left: auto;
   display: grid;
   place-items: center;
   border-radius: 12px;
   background: var(--b);
   color: #fff;
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
-  box-shadow: 0 6px 16px -8px var(--b);
-  transition: transform var(--fast), box-shadow var(--fast), border-radius var(--fast);
+  transition: transform var(--fast), border-radius var(--fast);
 }
 .dish-add:hover {
   transform: translateY(-2px);
-  border-radius: 17px;
-  box-shadow: 0 10px 22px -8px var(--b);
+  border-radius: 16px;
 }
 .dish-add:active {
-  transform: scale(0.9);
+  transform: scale(0.88);
 }
 
-/* ── slika ── */
-.dish-photo {
-  position: relative;
-  width: 112px;
-  flex: none;
-  align-self: stretch;
-  background: var(--surface-3);
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-}
-.dish-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.5s var(--ease);
-}
-/* Bez fotografije: topla podloga u boji lokala umesto sive rupe. */
-.dish-fallback {
-  font-size: 2.4rem;
-  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.18));
-}
-.dish-photo:has(.dish-fallback) {
-  background: linear-gradient(145deg, color-mix(in srgb, var(--b) 22%, var(--surface)), var(--surface-3));
-}
-
-.dish-qty {
-  position: absolute;
-  top: 7px;
-  right: 7px;
-  min-width: 23px;
-  height: 23px;
-  padding: 0 7px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-full);
-  background: var(--ink);
-  color: var(--bg);
-  font-size: 11.5px;
-  font-weight: 800;
-}
-
-@media (max-width: 380px) {
+/* Na starim uskim telefonima slika ustupi malo mesta tekstu; na
+   širokom ekranu, gde kartica ide u dve kolone, dobije nazad. */
+@media (max-width: 359px) {
   .dish-photo {
-    width: 96px;
+    width: 100px;
   }
-  .dish-body {
-    padding-left: var(--s3);
+  .dish-name {
+    font-size: 0.96rem;
+  }
+}
+@media (min-width: 760px) {
+  .dish-photo {
+    width: 128px;
   }
 }
 </style>
