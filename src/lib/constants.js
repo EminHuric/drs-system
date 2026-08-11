@@ -146,3 +146,12 @@ export const NEUTRAL_COLORS = [
 ]
 
 export const CURRENCIES = ['€', 'RSD', 'KM', 'kn', '$']
+
+/** Načini plaćanja — tekst koji vide i gost i osoblje. */
+export const PAYMENTS = {
+  cash: 'Gotovina',
+  card: 'Karticom',
+  waiter: 'Konobaru',
+  counter: 'Na kasi',
+  online: 'Online',
+}

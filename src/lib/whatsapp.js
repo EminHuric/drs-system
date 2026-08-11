@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { money } from './format.js'
+import { PAYMENTS } from './constants.js'
 
 const LINE = '━━━━━━━━━━━━━━━━'
 
@@ -61,7 +62,7 @@ export function buildOrderMessage(order, restaurant) {
   p.push(`💶 *UKUPNO: ${money(order.total, cur)}*`)
 
   if (order.payment) {
-    p.push(`💳 Plaćanje: ${order.payment === 'card' ? 'Kartica' : 'Gotovina'}`)
+    p.push(`💳 Plaćanje: ${PAYMENTS[order.payment] || order.payment}`)
   }
   if (order.note) {
     p.push('')

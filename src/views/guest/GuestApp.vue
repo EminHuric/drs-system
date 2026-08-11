@@ -297,6 +297,12 @@ const zones = computed(() =>
   rest.value?.floorZones?.length ? rest.value.floorZones : [{ id: 'sala', name: 'Sala' }]
 )
 
+// Šema se prikazuje samo ako je vlasnik nacrtao stolove i nije je isključio.
+// Bez toga bi gost gledao prazno platno i pitao se šta se od njega traži.
+const showFloor = computed(
+  () => rest.value?.dinein?.showTables !== false && tables.value.some((t) => t.active !== false)
+)
+
 const activeZone = computed(() => zones.value.find((z) => z.id === pickZone.value) || zones.value[0])
 
 const pickableTables = computed(() =>
@@ -432,6 +438,31 @@ function useMyLocation() {
     { enableHighAccuracy: true, timeout: 10000 }
   )
 }
+
+const payOptions = computed(() => {
+  if (orderType.value === 'delivery') {
+    return [
+      { id: 'cash', icon: '💵', label: 'Gotovina kuriru' },
+      { id: 'card', icon: '💳', label: 'Kartica kuriru' },
+    ]
+  }
+  if (orderType.value === 'takeaway') {
+    return [
+      { id: 'counter', icon: '🧾', label: 'Na kasi' },
+      { id: 'card', icon: '💳', label: 'Karticom' },
+    ]
+  }
+  return [
+    { id: 'waiter', icon: '🙋', label: 'Konobaru' },
+    { id: 'counter', icon: '🧾', label: 'Na kasi' },
+    { id: 'card', icon: '💳', label: 'Karticom' },
+  ]
+})
+
+// Ako se promeni način poručivanja, izabrano plaćanje možda više ne postoji.
+watch(payOptions, (list) => {
+  if (!list.some((o) => o.id === guest.value.payment)) guest.value.payment = list[0].id
+}, { immediate: true })
 
 function validate() {
   if (!lines.value.length) return 'Korpa je prazna.'
@@ -1322,14 +1353,29 @@ onBeforeUnmount(() => observer?.disconnect())
       <template v-if="orderType === 'dinein'">
         <div class="field">
           <label class="label">{{ t('table') }} <span class="req">*</span></label>
-          <div v-if="pickableTables.length" class="tablepick">
+          <!-- Prava skica lokala: gost prepozna gde sedi, ne mora da traži
+               broj na ivici stola. -->
+          <FloorPlan
+            v-if="showFloor"
+            :tables="tables"
+            :zone-id="pickZone || zones[0]?.id || 'sala'"
+            :selected-id="tableId"
+            :brand-color="brand"
+            @select="pickTable"
+          />
+
+          <div v-if="showFloor && zones.length > 1" class="seg" style="width: fit-content">
             <button
-              v-for="tb in pickableTables"
-              :key="tb.id"
-              class="tp"
-              :class="{ on: tableId === tb.id }"
-              @click="pickTable(tb)"
-            >{{ tb.label }}</button>
+              v-for="z in zones"
+              :key="z.id"
+              :class="{ on: (pickZone || zones[0]?.id) === z.id }"
+              @click="pickZone = z.id"
+            >{{ z.name }}</button>
+          </div>
+
+          <div v-if="tableLabel" class="picked">
+            🪑 Izabrali ste <strong>sto {{ tableLabel }}</strong>
+            <template v-if="zoneName"> · {{ zoneName }}</template>
           </div>
           <div class="row">
             <input v-model="tableLabel" class="input grow" placeholder="broj stola" />
@@ -1407,28 +1453,34 @@ onBeforeUnmount(() => observer?.disconnect())
           </div>
         </div>
 
-        <div class="field">
+        
+      </template>
+
+      <div class="field">
           <label class="label">Način plaćanja</label>
-          <div class="seg" style="width: 100%">
-            <button class="grow" :class="{ on: guest.payment === 'cash' }" @click="guest.payment = 'cash'">
-              💵 Gotovina
-            </button>
-            <button class="grow" :class="{ on: guest.payment === 'card' }" @click="guest.payment = 'card'">
-              💳 Kartica
+          <div class="paylist">
+            <button
+              v-for="o in payOptions"
+              :key="o.id"
+              class="pay"
+              :class="{ on: guest.payment === o.id }"
+              @click="guest.payment = o.id"
+            >
+              <span class="pay-ico">{{ o.icon }}</span>
+              <span>{{ o.label }}</span>
             </button>
           </div>
         </div>
-      </template>
 
-      <div class="two">
+      <div :class="orderType === 'dinein' ? '' : 'two'">
         <div class="field">
           <label class="label">Vaše ime</label>
           <input v-model="guest.name" class="input" placeholder="Marko" />
         </div>
-        <div class="field">
+        <div v-if="orderType !== 'dinein'" class="field">
           <label class="label">
             Telefon
-            <span v-if="orderType === 'delivery'" class="req">*</span>
+            <span v-if="orderType !== 'dinein'" class="req">*</span>
           </label>
           <input v-model="guest.phone" class="input" placeholder="+382 6X XXX XXX" />
         </div>
@@ -2765,5 +2817,49 @@ onBeforeUnmount(() => observer?.disconnect())
     opacity: 0;
     transform: translateY(14px);
   }
+}
+/* ── izabrani sto ── */
+.picked {
+  padding: 10px var(--s3);
+  border-radius: var(--r);
+  background: var(--tint-ok);
+  color: var(--ok);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+/* ── načini plaćanja ── */
+.paylist {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(104px, 100%), 1fr));
+  gap: 6px;
+}
+.pay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--s3) var(--s2);
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  color: var(--muted);
+  transition: all var(--fast);
+  text-align: center;
+  line-height: 1.25;
+}
+.pay:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.pay.on {
+  border-color: var(--b);
+  background: var(--tint-brand);
+  color: var(--b);
+}
+.pay-ico {
+  font-size: 1.3rem;
 }
 </style>

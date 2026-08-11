@@ -279,7 +279,7 @@ onMounted(load)
           <div v-if="order.guest?.name"><dt>Ime</dt><dd>{{ order.guest.name }}</dd></div>
           <div v-if="order.payment">
             <dt>Plaćanje</dt>
-            <dd>{{ order.payment === 'card' ? 'Kartica' : 'Gotovina' }}</dd>
+            <dd>{{ PAYMENTS[order.payment] || order.payment }}</dd>
           </div>
           <div v-if="order.note"><dt>Napomena</dt><dd>{{ order.note }}</dd></div>
         </dl>
