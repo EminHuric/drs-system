@@ -10,15 +10,21 @@ import { initializeApp, deleteApp } from 'firebase/app'
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
+import { FALLBACK_CONFIG, FALLBACK_SUPER_ADMINS } from './firebase.config'
+
 const env = import.meta.env
 
+// Env varijable imaju prednost; ako ih nema (npr. hosting nije podešen),
+// pada se na vrednosti iz firebase.config.js da sajt svejedno radi.
+const pick = (fromEnv, fallback) => (fromEnv && String(fromEnv).trim()) || fallback || ''
+
 export const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: env.VITE_FIREBASE_APP_ID,
+  apiKey: pick(env.VITE_FIREBASE_API_KEY, FALLBACK_CONFIG.apiKey),
+  authDomain: pick(env.VITE_FIREBASE_AUTH_DOMAIN, FALLBACK_CONFIG.authDomain),
+  projectId: pick(env.VITE_FIREBASE_PROJECT_ID, FALLBACK_CONFIG.projectId),
+  storageBucket: pick(env.VITE_FIREBASE_STORAGE_BUCKET, FALLBACK_CONFIG.storageBucket),
+  messagingSenderId: pick(env.VITE_FIREBASE_MESSAGING_SENDER_ID, FALLBACK_CONFIG.messagingSenderId),
+  appId: pick(env.VITE_FIREBASE_APP_ID, FALLBACK_CONFIG.appId),
 }
 
 export const firebaseReady = Boolean(
@@ -26,7 +32,9 @@ export const firebaseReady = Boolean(
 )
 
 // Email-ovi vlasnika platforme. MORA da odgovara superAdmins() u firestore.rules.
-export const SUPER_ADMIN_EMAILS = String(env.VITE_SUPER_ADMIN_EMAILS || '')
+export const SUPER_ADMIN_EMAILS = String(
+  pick(env.VITE_SUPER_ADMIN_EMAILS, FALLBACK_SUPER_ADMINS)
+)
   .split(',')
   .map((e) => e.trim().toLowerCase())
   .filter(Boolean)

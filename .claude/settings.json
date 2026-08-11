@@ -63,7 +63,9 @@
       "Bash(rm -rf dist)",
       "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\('  dependencies:', Object.keys\\(p.dependencies\\).join\\(', '\\)\\);console.log\\('  devDependencies:', p.devDependencies ? Object.keys\\(p.devDependencies\\).join\\(', '\\) : '\\(nema\\)'\\)\")",
       "Bash(git add *)",
-      "Bash(git commit -q -m 'Vercel: vite i plugin-vue u dependencies \\(production install ih je preskakao\\) *)"
+      "Bash(git commit -q -m 'Vercel: vite i plugin-vue u dependencies \\(production install ih je preskakao\\) *)",
+      "Bash(mv .env .env.backup)",
+      "Bash(git commit -q -m 'Rezervna Firebase konfiguracija u kodu *)"
     ]
   }
 }
