@@ -1,0 +1,140 @@
+/* ═══════════════════════════════════════════════════════════
+   RDS — dizajn tokeni
+   Jedno mesto za boje, razmake, senke i oblik. Sve ostalo u
+   sistemu se poziva na ove promenljive, pa se ceo izgled menja
+   odavde — uključujući svetlu temu.
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── tipografija ── */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, monospace;
+
+  --fs-xs: 0.7rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.9375rem;
+  --fs-md: 1.0625rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.625rem;
+  --fs-2xl: 2.125rem;
+  --fs-3xl: 3rem;
+
+  /* ── razmaci ── */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --s8: 64px;
+  --s9: 96px;
+
+  /* ── oblik ── */
+  --r-sm: 8px;
+  --r: 12px;
+  --r-md: 16px;
+  --r-lg: 22px;
+  --r-xl: 30px;
+  --r-full: 999px;
+
+  /* ── brend ── */
+  --brand: #e2603f;
+  --brand-soft: #ff9d5c;
+  --brand-ink: #ffffff;
+  --brand-grad: linear-gradient(135deg, #ff9d5c 0%, #e2603f 100%);
+
+  /* ── semantika ── */
+  --ok: #35b97a;
+  --warn: #eaa53b;
+  --bad: #ef5f57;
+  --info: #4a9fff;
+  --gold: #e5b649;
+  --hot: #f2683f;
+  --green: #4caf72;
+
+  /* ── kretanje ── */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --fast: 140ms var(--ease);
+  --slow: 320ms var(--ease);
+
+  --header-h: 62px;
+  --sidebar-w: 252px;
+  --maxw: 1280px;
+}
+
+/* ── TAMNA TEMA (podrazumevana) ─────────────────────────── */
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0a0c12;
+  --bg-deep: #06070b;
+  --surface: #11141d;
+  --surface-2: #171b26;
+  --surface-3: #1e2331;
+  --hover: rgba(255, 255, 255, 0.045);
+  --active: rgba(255, 255, 255, 0.075);
+
+  --line: rgba(255, 255, 255, 0.075);
+  --line-strong: rgba(255, 255, 255, 0.14);
+
+  --ink: #e9ecf4;
+  --ink-2: #aab3c5;
+  --ink-3: #77809440;
+  --muted: #7e8798;
+  --faint: #59616f;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 24px 60px -18px rgba(0, 0, 0, 0.75);
+  --shadow-brand: 0 10px 30px -10px rgba(226, 96, 63, 0.55);
+
+  --glass: rgba(17, 20, 29, 0.78);
+  --scrim: rgba(4, 5, 9, 0.72);
+
+  --tint-ok: rgba(53, 185, 122, 0.13);
+  --tint-warn: rgba(234, 165, 59, 0.13);
+  --tint-bad: rgba(239, 95, 87, 0.13);
+  --tint-info: rgba(74, 159, 255, 0.13);
+  --tint-brand: rgba(226, 96, 63, 0.14);
+}
+
+/* ── SVETLA TEMA ─────────────────────────────────────────── */
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f4f6fa;
+  --bg-deep: #eaedf4;
+  --surface: #ffffff;
+  --surface-2: #f7f9fc;
+  --surface-3: #eef1f7;
+  --hover: rgba(16, 22, 40, 0.04);
+  --active: rgba(16, 22, 40, 0.07);
+
+  --line: rgba(16, 22, 40, 0.09);
+  --line-strong: rgba(16, 22, 40, 0.17);
+
+  --ink: #10131b;
+  --ink-2: #414a5c;
+  --ink-3: #8891a340;
+  --muted: #667084;
+  --faint: #98a1b2;
+
+  --shadow-sm: 0 1px 2px rgba(16, 22, 40, 0.07);
+  --shadow: 0 6px 18px -6px rgba(16, 22, 40, 0.16);
+  --shadow-lg: 0 28px 64px -20px rgba(16, 22, 40, 0.26);
+  --shadow-brand: 0 10px 26px -12px rgba(226, 96, 63, 0.5);
+
+  --glass: rgba(255, 255, 255, 0.82);
+  --scrim: rgba(24, 28, 40, 0.42);
+
+  --tint-ok: rgba(53, 185, 122, 0.12);
+  --tint-warn: rgba(234, 165, 59, 0.15);
+  --tint-bad: rgba(239, 95, 87, 0.11);
+  --tint-info: rgba(74, 159, 255, 0.11);
+  --tint-brand: rgba(226, 96, 63, 0.1);
+}

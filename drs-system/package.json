@@ -1,0 +1,26 @@
+{
+  "name": "rds-platform",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "RDS — Restaurant Digital Solutions. Multi-tenant platforma za digitalno naručivanje (lokal + dostava).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "podesi": "node podesi-firebase.mjs",
+    "pravila": "firebase deploy --only firestore:rules,firestore:indexes",
+    "proveri": "node proveri-firebase.mjs",
+    "proveri-kod": "node proveri-kod.mjs"
+  },
+  "dependencies": {
+    "firebase": "^12.16.0",
+    "qrcode": "^1.5.4",
+    "vue": "^3.5.40",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.8",
+    "vite": "^8.1.5"
+  }
+}

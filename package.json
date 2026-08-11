@@ -1,0 +1,15 @@
+{
+  "name": "rds",
+  "private": true,
+  "description": "RDS — Restaurant Digital Solutions. Kod je u drs-system/; ove komande ga samo prosleđuju tamo.",
+  "scripts": {
+    "dev": "cd drs-system && npm run dev",
+    "build": "cd drs-system && npm run build",
+    "preview": "cd drs-system && npm run preview",
+    "proveri": "cd drs-system && node proveri-firebase.mjs",
+    "proveri-kod": "cd drs-system && node proveri-kod.mjs",
+    "podesi": "cd drs-system && node podesi-firebase.mjs",
+    "pravila": "cd drs-system && firebase deploy --only firestore:rules,firestore:indexes",
+    "admin": "cd drs-system && node napravi-admin.mjs"
+  }
+}

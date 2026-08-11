@@ -1,0 +1,289 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════════════
+//  RDS — Restaurant Digital Solutions
+//  Firestore Security Rules
+//
+//  Ovo je JEDINI sloj koji stvarno štiti podatke. Frontend guard-ovi
+//  (router, sakriveni linkovi) su samo udobnost — ova pravila su zakon.
+//
+//  Uloge:
+//    • super admin  — email iz superAdmins() liste. Sve može, jedini
+//                     sme da dodaje/uklanja druge platformske admine.
+//    • admin        — dokument u /platform_admins/{uid}. Vodi restorane,
+//                     blokira ih, ali NE može da pravi nove admine.
+//    • vlasnik      — restaurants/{rid}.ownerUid == uid. Vlada SAMO svojim
+//                     restoranom i ne može da promeni svoj status
+//                     (dakle ne može sam sebe da odblokira).
+//    • gost         — anonimna prijava. Vidi javni meni; od porudžbina
+//                     vidi ISKLJUČIVO one koje je sam napravio.
+//
+//  Deploy:  firebase deploy --only firestore:rules
+// ═══════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Ko je ko ────────────────────────────────────────────────────
+
+    // ⚠️ MORA da odgovara VITE_SUPER_ADMIN_EMAILS u .env fajlu.
+    function superAdmins() {
+      return ['emynbusiness@gmail.com'];
+    }
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSuper() {
+      return signedIn()
+        && request.auth.token.email != null
+        && request.auth.token.email in superAdmins();
+    }
+
+    function isPlatformAdmin() {
+      return isSuper()
+        || (signedIn()
+            && exists(/databases/$(database)/documents/platform_admins/$(request.auth.uid)));
+    }
+
+    function rest(rid) {
+      return get(/databases/$(database)/documents/restaurants/$(rid)).data;
+    }
+
+    function isOwner(rid) {
+      return signedIn() && rest(rid).ownerUid == request.auth.uid;
+    }
+
+    // Blokiran lokal = vlasnik gleda, ali ne dira.
+    function ownerCanWrite(rid) {
+      return isOwner(rid) && rest(rid).status != 'blocked';
+    }
+
+    function staff(rid) {
+      return isPlatformAdmin() || ownerCanWrite(rid);
+    }
+
+    function touched() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // ─── Platformski admini ──────────────────────────────────────────
+
+    match /platform_admins/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isPlatformAdmin());
+      allow list: if isPlatformAdmin();
+
+      // Samo super admin pravi i briše administratore.
+      allow create, update, delete: if isSuper();
+
+      // Admin sme da doradi sopstveno ime / poslednju prijavu.
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && touched().hasOnly(['name', 'lastLoginAt', 'updatedAt']);
+    }
+
+    // ─── Rezervacija jedinstvenih adresa (slug) ──────────────────────
+    // Firestore tretira upis preko postojećeg dokumenta kao `update`,
+    // a update je ovde zabranjen — otud prava garancija jedinstvenosti.
+
+    match /slugs/{slug} {
+      allow read: if true;
+      allow create: if isPlatformAdmin();
+      allow update: if false;
+      allow delete: if isPlatformAdmin();
+    }
+
+    // ─── Pozivnice (kodovi za vlasnike) ──────────────────────────────
+
+    match /invites/{code} {
+      // Kod se čita samo ako ga tačno znaš — pretraga je zabranjena.
+      allow get: if true;
+      allow list: if isPlatformAdmin();
+      allow create, delete: if isPlatformAdmin();
+      allow update: if isPlatformAdmin();
+
+      // Vlasnik "troši" svoj kod prilikom registracije.
+      allow update: if signedIn()
+        && resource.data.used == false
+        && request.resource.data.used == true
+        && request.resource.data.usedBy == request.auth.uid
+        && touched().hasOnly(['used', 'usedBy', 'usedAt']);
+    }
+
+    // ─── Restorani ───────────────────────────────────────────────────
+
+    match /restaurants/{rid} {
+      // Meni je javan — gost mora da ga vidi bez naloga.
+      allow get, list: if true;
+
+      allow create, delete: if isPlatformAdmin();
+      allow update: if isPlatformAdmin();
+
+      // 1) Vlasnik preuzima lokal svojim kodom (dok je ownerUid prazan).
+      allow update: if signedIn()
+        && resource.data.ownerUid == null
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.status == 'onboarding'
+        && touched().hasOnly(['ownerUid', 'ownerEmail', 'ownerName', 'status', 'updatedAt']);
+
+      // 2) Vlasnik završava podešavanje i pušta lokal u rad.
+      allow update: if isOwner(rid)
+        && resource.data.status == 'onboarding'
+        && request.resource.data.status == 'active'
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.slug == resource.data.slug
+        && !touched().hasAny(['plan', 'createdAt', 'createdBy', 'ownerUid', 'slug']);
+
+      // 3) Svakodnevno uređivanje. Status, vlasništvo, adresa i paket
+      //    ostaju van domašaja vlasnika.
+      allow update: if isOwner(rid)
+        && resource.data.status != 'blocked'
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.status == resource.data.status
+        && request.resource.data.slug == resource.data.slug
+        && !touched().hasAny(['plan', 'createdAt', 'createdBy', 'ownerUid', 'status', 'slug']);
+
+      // ─── Meni: kategorije i artikli ───────────────────────────────
+
+      match /categories/{id} {
+        allow read: if true;
+        allow write: if staff(rid);
+      }
+
+      match /items/{id} {
+        allow read: if true;
+        allow write: if staff(rid);
+      }
+
+      // ─── Raspored stolova (skica lokala) ──────────────────────────
+
+      match /tables/{id} {
+        allow read: if true;
+        allow write: if staff(rid);
+      }
+
+      // ─── Ocene i utisci gostiju ───────────────────────────────────
+      //
+      // Recenzije su javne — u tome im je i smisao. Ono što se čuva je
+      // poštenje značke „potvrđena porudžbina": nju sme da nosi samo
+      // recenzija čiju porudžbinu je zaista napravio isti gost.
+
+      match /reviews/{id} {
+
+        function newData() {
+          return request.resource.data;
+        }
+
+        function orderIsMine() {
+          return exists(/databases/$(database)/documents/restaurants/$(rid)/orders/$(newData().orderId))
+            && get(/databases/$(database)/documents/restaurants/$(rid)/orders/$(newData().orderId)).data.guestUid == request.auth.uid;
+        }
+
+        allow get, list: if true;
+
+        allow create: if signedIn()
+          && newData().guestUid == request.auth.uid
+          && rest(rid).status == 'active'
+          && newData().rating is number
+          && newData().rating >= 1
+          && newData().rating <= 5
+          && newData().text is string
+          && newData().text.size() <= 1500
+          && newData().photos.size() <= 3
+          && newData().itemRatings.size() <= 20
+          && newData().visible == true
+          && newData().reply == ''
+          && (
+            // Bez porudžbine — recenzija važi, ali bez značke.
+            (newData().orderId == '' && newData().verified == false)
+            // Sa porudžbinom — značka samo ako je porudžbina zaista njegova.
+            || (newData().verified == true && orderIsMine())
+          );
+
+        // Lokal odgovara na recenziju i sklanja neprimerene.
+        allow update: if staff(rid)
+          && touched().hasOnly(['reply', 'replyAt', 'visible', 'updatedAt']);
+
+        // Gost sme da povuče svoju recenziju; lokal ne može da je briše,
+        // samo da je sakrije — da ne bi „čistio" loše ocene bez traga.
+        allow delete: if isPlatformAdmin()
+          || (signedIn() && resource.data.guestUid == request.auth.uid);
+      }
+
+      // ─── Porudžbine ───────────────────────────────────────────────
+
+      match /orders/{oid} {
+
+        function mine() {
+          return signedIn() && resource.data.guestUid == request.auth.uid;
+        }
+
+        // Gost čita samo svoje; upit MORA da sadrži where('guestUid','==',uid).
+        allow get, list: if isPlatformAdmin() || isOwner(rid) || mine();
+
+        allow create: if signedIn()
+          && request.resource.data.guestUid == request.auth.uid
+          && request.resource.data.status == 'new'
+          && rest(rid).status == 'active'
+          && rest(rid).get('acceptingOrders', true) == true
+          && request.resource.data.total is number
+          && request.resource.data.total >= 0
+          && request.resource.data.lines.size() > 0
+          && request.resource.data.lines.size() <= 100;
+
+        // Osoblje pomera porudžbinu kroz statuse.
+        allow update: if staff(rid);
+
+        // Gost sme samo da otkaže dok je još neprihvaćena,
+        // i da ostavi trag o poslednjoj poruci u ćaskanju.
+        allow update: if mine() && (
+          (
+            touched().hasOnly(['status', 'updatedAt'])
+            && resource.data.status == 'new'
+            && request.resource.data.status == 'cancelled'
+          )
+          || touched().hasOnly(['lastMsgAt', 'lastMsgFrom', 'updatedAt'])
+        );
+
+        allow delete: if isPlatformAdmin();
+
+        // ─── Ćaskanje uživo uz porudžbinu ───────────────────────────
+
+        match /messages/{mid} {
+
+          function order() {
+            return get(/databases/$(database)/documents/restaurants/$(rid)/orders/$(oid)).data;
+          }
+
+          function participant() {
+            return isPlatformAdmin()
+              || isOwner(rid)
+              || (signedIn() && order().guestUid == request.auth.uid);
+          }
+
+          allow read: if participant();
+
+          allow create: if participant()
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() > 0
+            && request.resource.data.text.size() <= 2000;
+
+          // Poslato je poslato — poruke se ne prepravljaju ni brišu.
+          allow update, delete: if false;
+        }
+      }
+    }
+
+    // Pregled cele platforme (collection group upit nad porudžbinama).
+    match /{path=**}/orders/{oid} {
+      allow read: if isPlatformAdmin();
+    }
+
+    // Sve što nije izričito dozvoljeno — zabranjeno je.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
