@@ -58,7 +58,11 @@
       "Bash(awk '{printf \"  %.0f KB  landing\\\\n\", $5/1024}')",
       "Bash(grep -n \"^import { auth, db\\\\|LIVE_STATUSES, ORDER_STATUS\\\\|normalizePhone, toDate\\\\|myUid.value = u.uid\" src/views/guest/GuestApp.vue)",
       "Bash(xargs echo \"  pominjanja drs-system u README:\")",
-      "Bash(xargs echo \"  posle ispravke:\")"
+      "Bash(xargs echo \"  posle ispravke:\")",
+      "Bash(rm -rf /tmp/rds-test)",
+      "Bash(rm -rf dist)",
+      "Bash(node -e \"const p=require\\('./package.json'\\);console.log\\('  dependencies:', Object.keys\\(p.dependencies\\).join\\(', '\\)\\);console.log\\('  devDependencies:', p.devDependencies ? Object.keys\\(p.devDependencies\\).join\\(', '\\) : '\\(nema\\)'\\)\")",
+      "Bash(git add *)"
     ]
   }
 }
