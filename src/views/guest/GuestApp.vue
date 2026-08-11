@@ -732,7 +732,6 @@ async function callWaiter() {
 // ═══ kretanje kroz meni ═══════════════════════════════════════
 
 const activeCat = ref('')
-const cartOpen = ref(false)
 let observer = null
 
 const showTabs = computed(
@@ -856,7 +855,7 @@ onBeforeUnmount(() => observer?.disconnect())
           class="cart-btn"
           :class="{ full: count }"
           :aria-label="count ? `Korpa, ${count} artikala` : 'Korpa je prazna'"
-          @click="cartOpen = true"
+          @click="checkout = true"
         >
           🛒
           <span v-if="count" class="cart-n">{{ count }}</span>
@@ -892,35 +891,20 @@ onBeforeUnmount(() => observer?.disconnect())
     </div>
 
     <!-- ── izbor načina ───────────────────────────────── -->
-    <div v-if="needsModeChoice" class="choose">
-      <h2>{{ t('howOrder') }}</h2>
-      <div class="choose-grid">
-        <button v-if="modes.includes('dinein')" class="choose-card" @click="chooseMode('dinein')">
-          <span class="cc-ico">🍽️</span>
-          <strong>{{ t('dineIn') }}</strong>
-          <span class="xs faint">{{ t('dineInHint') }}</span>
-        </button>
-
-        <button v-if="modes.includes('takeaway')" class="choose-card" @click="chooseMode('takeaway')">
-          <span class="cc-ico">🛍️</span>
-          <strong>Za poneti</strong>
-          <span class="xs faint">Poručim sad, dođem po gotovo · ~{{ takeawayEta }} min</span>
-        </button>
-
-        <button v-if="modes.includes('delivery')" class="choose-card" @click="chooseMode('delivery')">
-          <span class="cc-ico">🛵</span>
-          <strong>{{ t('deliveryTitle') }}</strong>
-          <span class="xs faint">
-            {{ t('deliveryHint') }}
-            <template v-if="rest.delivery?.etaMin"> · ~{{ rest.delivery.etaMin }} min</template>
-          </span>
-        </button>
-      </div>
-      <p v-if="rest.delivery?.note" class="hint center">{{ rest.delivery.note }}</p>
+    <div v-if="modes.length > 1" class="modestrip">
+      <button
+        v-for="m in modes"
+        :key="m"
+        class="ms-btn"
+        :class="{ on: orderType === m }"
+        @click="chooseMode(m)"
+      >
+        <span>{{ m === 'dinein' ? '🍽️' : m === 'takeaway' ? '🛍️' : '🛵' }}</span>
+        {{ m === 'dinein' ? t('dineIn') : m === 'takeaway' ? 'Za poneti' : t('deliveryTitle') }}
+      </button>
     </div>
 
-    <template v-else>
-      <main class="body">
+    <main class="body">
         <div v-if="itemsLoading" class="grid">
           <div v-for="i in 6" :key="i" class="skeleton" style="height: 108px"></div>
         </div>
@@ -929,17 +913,52 @@ onBeforeUnmount(() => observer?.disconnect())
         <section v-else-if="results" class="sec">
           <h2 class="sec-title">{{ t('searchResults') }}</h2>
           <div v-if="results.length" class="grid">
-            <button v-for="it in results" :key="it.id" class="card-item" @click="openDetail(it)">
-              <span class="thumb">
-                <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
-                <span v-else>{{ it.emoji }}</span>
-              </span>
-              <div class="grow" style="min-width: 0">
-                <strong>{{ it.name }}</strong>
-                <p v-if="it.desc" class="xs faint clamp">{{ it.desc }}</p>
-              </div>
-              <span class="mono price">{{ money(it.price, cur) }}</span>
-            </button>
+              <button v-for="it in results" :key="it.id" class="card-item" @click="openDetail(it)">
+                <span class="ci-text">
+                  <strong class="ci-name">{{ it.name }}</strong>
+                  <span v-if="it.desc" class="ci-desc">{{ it.desc }}</span>
+
+                  <span
+                    v-if="it.badges?.length || itemScores[it.id]?.count || it.portion"
+                    class="ci-badges"
+                  >
+                    <span v-if="itemScores[it.id]?.count" class="badge xs badge-gold">
+                      ★ {{ fmtRating(itemScores[it.id].avg) }}
+                    </span>
+                    <span
+                      v-for="b in it.badges"
+                      :key="b"
+                      class="badge xs"
+                      :class="'badge-' + (BADGES[b]?.tone || '')"
+                    >
+                      {{ BADGES[b]?.icon }} {{ BADGES[b]?.label }}
+                    </span>
+                    <span v-if="it.portion" class="badge xs badge-muted">{{ it.portion }}</span>
+                  </span>
+
+                  <span class="ci-price">
+                    {{ money(it.price, cur) }}
+                    <s v-if="it.oldPrice > it.price">{{ money(it.oldPrice, cur) }}</s>
+                  </span>
+                </span>
+
+                <span class="ci-media">
+                  <span class="thumb">
+                    <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
+                    <span v-else class="ci-emoji">{{ it.emoji }}</span>
+                  </span>
+                  <span
+                    v-if="!closed"
+                    class="add"
+                    role="button"
+                    tabindex="0"
+                    :aria-label="'Dodaj ' + it.name"
+                    @click.stop="quickAdd(it)"
+                    @keydown.enter.stop="quickAdd(it)"
+                  >+</span>
+                  <span v-if="cart.qtyOf(it.id)" class="qty-pill">{{ cart.qtyOf(it.id) }}</span>
+                </span>
+              </button>
           </div>
           <p v-else class="muted center" style="padding: var(--s6)">
             Ništa nije pronađeno za „{{ search }}“.
@@ -974,22 +993,16 @@ onBeforeUnmount(() => observer?.disconnect())
             <h2 class="sec-title">{{ c.emoji }} {{ c.name }}</h2>
             <div class="grid">
               <button v-for="it in c.items" :key="it.id" class="card-item" @click="openDetail(it)">
-                <span class="thumb">
-                  <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
-                  <span v-else>{{ it.emoji }}</span>
-                </span>
+                <span class="ci-text">
+                  <strong class="ci-name">{{ it.name }}</strong>
+                  <span v-if="it.desc" class="ci-desc">{{ it.desc }}</span>
 
-                <div class="grow" style="min-width: 0">
-                  <strong>{{ it.name }}</strong>
-                  <p v-if="it.desc" class="xs faint clamp">{{ it.desc }}</p>
-                  <div
+                  <span
                     v-if="it.badges?.length || itemScores[it.id]?.count || it.portion"
-                    class="wrap-row"
-                    style="gap: 4px; margin-top: 4px"
+                    class="ci-badges"
                   >
                     <span v-if="itemScores[it.id]?.count" class="badge xs badge-gold">
                       ★ {{ fmtRating(itemScores[it.id].avg) }}
-                      <span class="faint">({{ itemScores[it.id].count }})</span>
                     </span>
                     <span
                       v-for="b in it.badges"
@@ -1000,25 +1013,28 @@ onBeforeUnmount(() => observer?.disconnect())
                       {{ BADGES[b]?.icon }} {{ BADGES[b]?.label }}
                     </span>
                     <span v-if="it.portion" class="badge xs badge-muted">{{ it.portion }}</span>
-                  </div>
-                </div>
+                  </span>
 
-                <span class="right">
-                  <span class="mono price">{{ money(it.price, cur) }}</span>
-                  <s v-if="it.oldPrice > it.price" class="xs faint mono">
-                    {{ money(it.oldPrice, cur) }}
-                  </s>
+                  <span class="ci-price">
+                    {{ money(it.price, cur) }}
+                    <s v-if="it.oldPrice > it.price">{{ money(it.oldPrice, cur) }}</s>
+                  </span>
+                </span>
+
+                <span class="ci-media">
+                  <span class="thumb">
+                    <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
+                    <span v-else class="ci-emoji">{{ it.emoji }}</span>
+                  </span>
                   <span
                     v-if="!closed"
                     class="add"
                     role="button"
                     tabindex="0"
-                    aria-label="Dodaj u korpu"
+                    :aria-label="'Dodaj ' + it.name"
                     @click.stop="quickAdd(it)"
                     @keydown.enter.stop="quickAdd(it)"
-                  >
-                    +
-                  </span>
+                  >+</span>
                   <span v-if="cart.qtyOf(it.id)" class="qty-pill">{{ cart.qtyOf(it.id) }}</span>
                 </span>
               </button>
@@ -1134,7 +1150,6 @@ onBeforeUnmount(() => observer?.disconnect())
           </RouterLink>
         </footer>
       </main>
-    </template>
 
     <!-- ── donje trake ────────────────────────────────── -->
     <div class="docks">
@@ -1161,7 +1176,7 @@ onBeforeUnmount(() => observer?.disconnect())
       </Transition>
 
       <Transition name="sheet">
-        <button v-if="count && !cartOpen && !closed" class="cartbar" @click="cartOpen = true">
+        <button v-if="count && !checkout && !closed" class="cartbar" @click="checkout = true">
           <span class="cb-count">{{ count }}</span>
           <span class="grow truncate">{{ money(total, cur) }}</span>
           <span class="cb-go">Završi porudžbinu →</span>
@@ -1270,67 +1285,35 @@ onBeforeUnmount(() => observer?.disconnect())
       </template>
     </Modal>
 
-    <!-- ── korpa ──────────────────────────────────────── -->
-    <Modal v-if="cartOpen" :title="t('yourOrder')" @close="cartOpen = false">
+    <!-- ── slanje porudžbine ──────────────────────────── -->
+    <Modal v-if="checkout" :title="t('yourOrder')" :busy="sending" @close="checkout = false">
+      <!-- Korpa i podaci u istom ekranu — gost ne prolazi kroz dva
+           prozora da bi poslao istu porudžbinu. -->
       <Empty v-if="!lines.length" icon="🛒" :title="t('cartEmpty')" :text="t('cartEmptyHint')" />
 
-      <template v-else>
-        <ul class="cart">
-          <li v-for="(l, i) in lines" :key="i">
-            <span class="c-emoji">{{ l.emoji || '🍽️' }}</span>
-            <div class="grow" style="min-width: 0">
-              <strong class="small">{{ l.name }}</strong>
-              <span v-if="l.note" class="xs faint">↳ {{ l.note }}</span>
-              <span class="xs faint">{{ money(l.price, cur) }} po komadu</span>
-            </div>
-            <div class="stepper">
-              <button class="btn btn-soft btn-icon btn-sm" @click="cart.dec(i)">−</button>
-              <strong class="mono small" style="min-width: 20px; text-align: center">{{ l.qty }}</strong>
-              <button class="btn btn-soft btn-icon btn-sm" @click="cart.inc(i)">+</button>
-            </div>
-            <strong class="mono small" style="min-width: 62px; text-align: right">
-              {{ money(l.price * l.qty, cur) }}
-            </strong>
-          </li>
-        </ul>
-
-        <div class="sums">
-          <div class="row-between small">
-            <span class="muted">Artikli</span>
-            <span class="mono">{{ money(subtotal, cur) }}</span>
+      <ul v-else class="cart">
+        <li v-for="(l, i) in lines" :key="i">
+          <span class="c-emoji">{{ l.emoji || '🍽️' }}</span>
+          <div class="grow" style="min-width: 0">
+            <strong class="small truncate">{{ l.name }}</strong>
+            <span v-if="l.note" class="xs faint truncate">↳ {{ l.note }}</span>
+            <span class="xs faint">{{ money(l.price, cur) }} {{ t('perPiece') }}</span>
           </div>
-          <div v-if="orderType === 'delivery'" class="row-between small">
-            <span class="muted">Dostava</span>
-            <span class="mono">
-              {{ deliveryFee > 0 ? money(deliveryFee, cur) : 'besplatno' }}
-            </span>
+          <div class="stepper">
+            <button class="btn btn-soft btn-icon btn-sm" :aria-label="'-'" @click="cart.dec(i)">−</button>
+            <strong class="mono small" style="min-width: 18px; text-align: center">{{ l.qty }}</strong>
+            <button class="btn btn-soft btn-icon btn-sm" :aria-label="'+'" @click="cart.inc(i)">+</button>
           </div>
-          <div class="row-between total-row">
-            <strong>Ukupno</strong>
-            <strong class="mono">{{ money(total, cur) }}</strong>
-          </div>
-        </div>
+          <strong class="mono small c-sum">{{ money(l.price * l.qty, cur) }}</strong>
+        </li>
+      </ul>
 
-        <p v-if="belowMin" class="note note-warn small">
-          Najmanja porudžbina za dostavu je {{ money(minOrder, cur) }} — nedostaje
-          {{ money(minOrder - subtotal, cur) }}.
-        </p>
-      </template>
+      <p v-if="belowMin" class="note note-warn small">
+        {{ t('minOrder') }} {{ money(minOrder, cur) }} — {{ t('missing') }}
+        {{ money(minOrder - subtotal, cur) }}.
+      </p>
 
-      <template #foot>
-        <button class="btn btn-ghost" @click="cartOpen = false">{{ t('keepBrowsing') }}</button>
-        <button
-          class="btn btn-primary grow"
-          :disabled="!lines.length || closed || belowMin"
-          @click="((cartOpen = false), (checkout = true))"
-        >
-          {{ t('next') }}
-        </button>
-      </template>
-    </Modal>
-
-    <!-- ── slanje porudžbine ──────────────────────────── -->
-    <Modal v-if="checkout" :title="t('almostDone')" :busy="sending" @close="checkout = false">
+      <hr style="margin: 0" />
       <div v-if="rest.mode === 'both'" class="seg" style="width: 100%">
         <button class="grow" :class="{ on: orderType === 'dinein' }" @click="chooseMode('dinein')">
           🍽️ U lokalu
@@ -1487,11 +1470,11 @@ onBeforeUnmount(() => observer?.disconnect())
       </p>
 
       <template #foot>
-        <button class="btn btn-ghost" :disabled="sending" @click="checkout = false">Nazad</button>
+        <button class="btn btn-ghost" :disabled="sending" @click="checkout = false">{{ t('keepBrowsing') }}</button>
         <button
           class="btn btn-primary grow"
           :class="sending && 'btn-spin'"
-          :disabled="sending"
+          :disabled="sending || !lines.length || belowMin"
           @click="submit"
         >
           Pošalji porudžbinu · {{ money(total, cur) }}
@@ -2031,42 +2014,85 @@ onBeforeUnmount(() => observer?.disconnect())
   border: 1px solid var(--line);
   background: var(--surface);
   text-align: left;
-  transition: border-color var(--fast), box-shadow var(--fast), transform var(--fast);
   width: 100%;
+  transition: border-color var(--fast), box-shadow var(--fast), transform var(--fast);
 }
 .card-item:hover {
   border-color: var(--b);
   box-shadow: var(--shadow);
-  transform: translateY(-2px);
+}
+.card-item:active {
+  transform: scale(0.99);
 }
 .card-item:hover .thumb img {
   transform: scale(1.06);
 }
-.card-item strong {
-  display: block;
-  line-height: 1.3;
-  font-size: var(--fs-base);
+
+/* Tekst prvi i pun širinom — naziv jela ne sme da se lomi na dva slova
+   po redu zato što slika jede pola ekrana. */
+.ci-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
 }
-.clamp {
+.ci-name {
+  font-size: var(--fs-base);
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.ci-desc {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.ci-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.ci-price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: var(--fs-md);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.ci-price s {
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--faint);
+}
 
-/* Slika jela nosi karticu — zato je krupna i uvek istog odnosa stranica. */
+/* Slika desno, kvadratna, sa dugmetom „+" na uglu — palac ga dohvata
+   bez pomeranja ruke. */
+.ci-media {
+  position: relative;
+  flex: none;
+  width: 96px;
+  align-self: center;
+}
 .thumb {
-  width: 104px;
-  align-self: stretch;
-  min-height: 104px;
+  width: 96px;
+  height: 96px;
   border-radius: var(--r);
   background: var(--surface-3);
   display: grid;
   place-items: center;
-  font-size: 2rem;
   overflow: hidden;
-  flex: none;
 }
 .thumb img {
   width: 100%;
@@ -2074,57 +2100,60 @@ onBeforeUnmount(() => observer?.disconnect())
   object-fit: cover;
   transition: transform var(--slow);
 }
-@media (max-width: 420px) {
-  .thumb {
-    width: 84px;
-    min-height: 84px;
-    font-size: 1.6rem;
-  }
-}
-
-.right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  flex: none;
-  position: relative;
-}
-.price {
-  font-weight: 700;
-  white-space: nowrap;
+.ci-emoji {
+  font-size: 2.2rem;
+  opacity: 0.9;
 }
 .add {
-  width: 30px;
-  height: 30px;
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: var(--b);
   color: #fff;
-  font-size: 1.05rem;
+  font-size: 1.25rem;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
+  box-shadow: 0 4px 14px -4px var(--b), 0 0 0 3px var(--surface);
   transition: transform var(--fast);
 }
-.add:hover {
+.add:hover,
+.add:active {
   transform: scale(1.12);
 }
 .qty-pill {
   position: absolute;
-  bottom: -6px;
-  left: -10px;
-  min-width: 19px;
-  height: 19px;
-  padding: 0 5px;
+  top: -6px;
+  left: -6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
   border-radius: var(--r-full);
   background: var(--ink);
   color: var(--bg);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 750;
   display: grid;
   place-items: center;
+  box-shadow: 0 0 0 3px var(--surface);
+}
+
+@media (max-width: 400px) {
+  .ci-media,
+  .thumb {
+    width: 84px;
+  }
+  .thumb {
+    height: 84px;
+  }
+  .ci-emoji {
+    font-size: 1.9rem;
+  }
 }
 
 /* ── izdvojeno ── */
@@ -2562,6 +2591,84 @@ onBeforeUnmount(() => observer?.disconnect())
 @media (max-width: 460px) {
   .two {
     grid-template-columns: 1fr;
+  }
+}
+/* ── traka izbora načina ── */
+.modestrip {
+  display: flex;
+  gap: 6px;
+  max-width: 900px;
+  margin: var(--s4) auto 0;
+  padding-inline: var(--s4);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.modestrip::-webkit-scrollbar {
+  display: none;
+}
+.ms-btn {
+  flex: 1;
+  min-width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px var(--s3);
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: var(--fs-sm);
+  font-weight: 650;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: all var(--fast);
+}
+.ms-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.ms-btn.on {
+  background: var(--b);
+  border-color: var(--b);
+  color: #fff;
+}
+
+/* ── korpa u ekranu za slanje ── */
+.c-sum {
+  flex: none;
+  min-width: 58px;
+  text-align: right;
+}
+
+/* ── telefon: vazduha tamo gde treba, manje gde ne treba ── */
+@media (max-width: 640px) {
+  .body {
+    padding-inline: var(--s4);
+  }
+  .sec {
+    margin-bottom: var(--s6);
+  }
+  .sec-title {
+    font-size: var(--fs-md);
+    margin-bottom: var(--s3);
+  }
+  .grid {
+    gap: var(--s2);
+  }
+  .card-item {
+    padding: var(--s2);
+    gap: var(--s2);
+  }
+  .hero {
+    min-height: 230px;
+    padding-bottom: var(--s5);
+  }
+  .cart li {
+    gap: var(--s2);
+  }
+  .stepper .btn-icon {
+    width: 30px;
+    height: 30px;
   }
 }
 </style>

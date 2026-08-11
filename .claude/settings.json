@@ -66,7 +66,13 @@
       "Bash(git commit -q -m 'Vercel: vite i plugin-vue u dependencies \\(production install ih je preskakao\\) *)",
       "Bash(mv .env .env.backup)",
       "Bash(git commit -q -m 'Rezervna Firebase konfiguracija u kodu *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(cd \"c:/Users/Emin/Desktop/Programs/restaurant-orders\" && echo \"=== LIVE_STATUSES ===\" && grep -A2 \"export const LIVE_STATUSES\" src/lib/constants.js | sed 's/^/  /' && echo \"\" && echo \"=== liveOrders u usePanelData ===\" && sed -n '/const liveOrders/,/^  \\)/p' src/composables/usePanelData.js | sed 's/^/  /' && echo \"\" && echo \"=== alarm u PanelLayout ===\" && sed -n '/waiterCalls = computed/,/{ immediate: true }/p' src/views/panel/PanelLayout.vue | sed 's/^/  /')",
+      "Bash(node -)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",
+      "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\views\\panel"
     ]
   }
 }
