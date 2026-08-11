@@ -76,7 +76,16 @@
       "Bash(xargs echo \"  dugmadi +:\")",
       "Bash(git commit -q -m 'Meni: dugme + van fotografije, sto se bira u istom ekranu *)",
       "Bash(git commit -q -m 'Gost: sema stolova u ekranu za slanje, bez telefona u lokalu, cetiri nacina placanja *)",
-      "Bash(git commit -q -m 'Pomocnik gostu: odgovara o meniju i preporucuje jela *)"
+      "Bash(git commit -q -m 'Pomocnik gostu: odgovara o meniju i preporucuje jela *)",
+      "Bash(grep -nE \"replace\\\\\\(/\\\\[|split\\\\\\(/|match\\\\\\(/\\\\\\(\" src/lib/assistant.js)",
+      "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/fix-regex.cjs\")",
+      "Bash(grep -nE \"a-z0-9|split\\\\\\(/|match\\\\\\(/\\\\\\(\" src/lib/assistant.js)",
+      "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/test-asistent.mjs\")",
+      "Bash(sed -i \"s|check\\('imate li hobotnicu', \\(r, n\\) => n.some\\(\\(x\\) => x.toLowerCase\\(\\).includes\\('hobotnic'\\)\\)\\)|check\\('imate li lignje', \\(r, n\\) => n.some\\(\\(x\\) => x.toLowerCase\\(\\).includes\\('lignj'\\)\\)\\)|\" \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/test-asistent.mjs\")",
+      "Bash(cp \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/test-asistent.mjs\" proveri-pomocnika.mjs)",
+      "Bash(sed -i \"s|file:///C:/Users/Emin/Desktop/Programs/restaurant-orders/src/lib/|./src/lib/|g\" proveri-pomocnika.mjs)",
+      "Bash(node proveri-pomocnika.mjs)",
+      "Bash(git commit -q -m 'Pomocnik: razumevanje umesto pogadjanja *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",

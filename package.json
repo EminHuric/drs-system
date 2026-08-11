@@ -11,7 +11,8 @@
     "podesi": "node podesi-firebase.mjs",
     "pravila": "firebase deploy --only firestore:rules,firestore:indexes",
     "proveri": "node proveri-firebase.mjs",
-    "proveri-kod": "node proveri-kod.mjs"
+    "proveri-kod": "node proveri-kod.mjs",
+    "proveri-pomocnika": "node proveri-pomocnika.mjs"
   },
   "engines": {
     "node": ">=20"

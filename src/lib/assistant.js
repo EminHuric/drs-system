@@ -67,8 +67,71 @@ const norm = (s) =>
     .replace(/š/g, 's')
     .replace(/ž/g, 'z')
     .replace(/đ/g, 'dj')
+    .replace(/[^a-z0-9\s]/g, ' ')
 
-const has = (q, ...words) => words.some((w) => norm(q).includes(norm(w)))
+// Reči koje ništa ne znače u pitanju. Bez ovoga „ima li nešto kiselo"
+// hvata reč „ima" i vraća pola menija.
+const STOP = new Set(
+  ('ima imate imas li da ne nema sta sto nesto neka neki neko nekakvo moze mogu mi me mene ' +
+    'za na od do kod sa uz po je su bi bih bismo hocu hoces zelim zelite molim vas vam ' +
+    'kakav kakva kakvo koje koji koja jel jeli ovde tu tamo jedno jedan jednu malo puno ' +
+    'kao ali ili pa te se sam si smo ste su bio bila jos vec samo baš bas dobro ok ').split(/\s+/)
+)
+
+/**
+ * Gruba osnova reči. Srpski menja nastavke („pršuta", „pršutom"), pa
+ * poređenje celih reči promašuje ono što je očigledno isto.
+ */
+function stem(w) {
+  if (w.length > 6) return w.slice(0, w.length - 2)
+  if (w.length > 4) return w.slice(0, w.length - 1)
+  return w
+}
+
+function keywords(q) {
+  return norm(q)
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP.has(w))
+    .map(stem)
+}
+
+// Ukusi se ne pišu u meniju, pa se prepoznaju po sastojcima.
+const TASTES = {
+  kiselo: ['limun', 'sirce', 'kiselo', 'kupus', 'krastavac', 'jogurt', 'pavlak', 'vinegret', 'pomorandz', 'grejp', 'turs'],
+  slatko: ['secer', 'med', 'cokolad', 'krem', 'tort', 'kolac', 'sladoled', 'palacink', 'baklav', 'dzem', 'vocn'],
+  slano: ['slanin', 'prsut', 'masline', 'pancet', 'incun', 'kackavalj', 'feta', 'suho'],
+  ljuto: ['ljut', 'cili', 'jalapeno', 'papric', 'pikant', 'ajvar'],
+  lagano: ['salat', 'supa', 'corb', 'riba', 'povrc', 'grilovan'],
+  jako: ['rostilj', 'mesan', 'pljeskavic', 'cevap', 'rebra', 'stek', 'burger'],
+}
+
+const HAY = (i) => norm([i.name, i.desc, i.ingredients, (i.badges || []).join(' '), (i.allergens || []).join(' ')].join(' '))
+
+/** Pretraga sa bodovanjem: naziv vredi više od opisa. */
+function search(items, words) {
+  if (!words.length) return []
+  return items
+    .map((i) => {
+      const name = norm(i.name)
+      const ing = norm(i.ingredients)
+      const desc = norm(i.desc)
+      let score = 0
+      for (const w of words) {
+        if (name.includes(w)) score += 10
+        else if (ing.includes(w)) score += 6
+        else if (desc.includes(w)) score += 4
+      }
+      return { i, score }
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.i)
+}
+
+function byTaste(items, taste) {
+  const keys = TASTES[taste] || []
+  return items.filter((i) => keys.some((k) => HAY(i).includes(k)))
+}
 
 /**
  * @returns {{text: string, items: object[]}} odgovor i jela za prikaz
@@ -77,92 +140,88 @@ export function localAnswer(question, { rest, items, scores = {} }) {
   const cur = rest?.currency || '€'
   const live = items.filter((i) => i.active !== false)
   const q = norm(question)
-
+  const words = keywords(question)
   const rated = (i) => scores[i.id]?.avg || 0
-  const byRating = (a, b) => rated(b) - rated(a)
 
-  // preporuka
-  if (has(q, 'preporu', 'sta da', 'najbolj', 'sta je dobro', 'sta mi savet', 'ne znam sta')) {
-    const top = live
-      .filter((i) => scores[i.id]?.count || i.badges?.includes('bestseller') || i.featured)
-      .sort(byRating)
-      .slice(0, 4)
-    const pick = top.length ? top : live.slice(0, 4)
-    return {
-      text: pick.length
-        ? 'Evo šta gosti najviše hvale kod nas:'
-        : 'Meni se još popunjava — pitajte osoblje za preporuku.',
-      items: pick,
+  // ── radno vreme ──
+  if (/(radno vreme|do kad|otvoreno|zatvarate|kad radite)/.test(q)) {
+    return { text: rest?.hours ? `Radno vreme: ${rest.hours}` : 'Radno vreme nije uneto — pitajte osoblje.', items: [] }
+  }
+
+  // ── ukus: kiselo, slatko, ljuto… ──
+  for (const taste of Object.keys(TASTES)) {
+    if (q.includes(taste) || (taste === 'jako' && /jac|zasitn|obrok/.test(q))) {
+      const found = byTaste(live, taste)
+      if (found.length) return { text: `Evo šta bih izdvojio kao ${taste}:`, items: found.slice(0, 6) }
+      return {
+        text: `Nemam ništa označeno kao ${taste} u meniju. Pitajte konobara, možda ima nešto što nije upisano.`,
+        items: [],
+      }
     }
   }
 
-  // posno / vegetarijansko
-  if (has(q, 'posn', 'vegan', 'vegetarij', 'bez mesa')) {
+  // ── bez mesa ──
+  if (/(posn|vegan|vegetarij|bez mesa)/.test(q)) {
     const v = live.filter(
-      (i) => i.badges?.includes('vegan') || has(i.desc + ' ' + i.ingredients, 'povrc', 'salat', 'sir')
+      (i) => i.badges?.includes('vegan') || (!/(mes|pilet|junet|svinj|prsut|slanin|riba|skamp|rostilj)/.test(HAY(i)) && /(salat|povrc|sir|testenin|supa)/.test(HAY(i)))
     )
     return {
-      text: v.length ? 'Ovo je bez mesa:' : 'Nemamo posebno označena posna jela — pitajte osoblje.',
+      text: v.length ? 'Ovo je bez mesa:' : 'Nemamo posebno označeno posno jelo — pitajte konobara.',
       items: v.slice(0, 6),
     }
   }
 
-  // ljuto
-  if (has(q, 'ljut', 'pikant')) {
-    const v = live.filter((i) => i.badges?.includes('spicy') || has(i.desc, 'ljut', 'cili', 'jalapeno'))
-    return { text: v.length ? 'Ovo je ljuto:' : 'Nemamo označeno ljuto jelo.', items: v.slice(0, 6) }
-  }
-
-  // alergeni i gluten
-  if (has(q, 'gluten', 'alerg', 'laktoz', 'orasi', 'kikiriki')) {
-    const bad = ['gluten', 'laktoza', 'orašasti plodovi', 'kikiriki'].find((a) => q.includes(norm(a)))
-    const safe = live.filter((i) => !i.allergens?.some((a) => norm(a) === norm(bad || '')))
+  // ── alergeni ──
+  const allergen = ['gluten', 'laktoz', 'orasi', 'kikiriki', 'jaja', 'soja'].find((a) => q.includes(a))
+  if (allergen) {
+    const safe = live.filter((i) => !(i.allergens || []).some((x) => norm(x).includes(allergen)))
     return {
-      text: bad
-        ? `Ovo ne sadrži ${bad} prema podacima koje je uneo lokal. Ako je alergija ozbiljna, obavezno recite konobaru.`
-        : 'Alergeni su naznačeni kod svakog jela. Otvorite jelo da ih vidite.',
-      items: bad ? safe.slice(0, 6) : [],
+      text: `Prema podacima koje je uneo lokal, ovo ne sadrži ${allergen}. Ako je alergija ozbiljna, obavezno recite konobaru pre nego što naručite.`,
+      items: safe.slice(0, 6),
     }
   }
 
-  // cena
-  const priceMatch = q.match(/(\d+)\s*(e|eur|evr|din|rsd|km)?/)
-  if (has(q, 'jeftin', 'do ', 'ispod', 'budzet') && priceMatch) {
-    const max = Number(priceMatch[1])
+  // ── cena ──
+  const price = q.match(/(\d+)/)
+  if (price && /(do|ispod|jeftin|budzet|manje od)/.test(q)) {
+    const max = Number(price[1])
     const cheap = live.filter((i) => i.price <= max).sort((a, b) => a.price - b.price)
     return {
-      text: cheap.length ? `Do ${money(max, cur)}:` : `Nemamo ništa do ${money(max, cur)}.`,
+      text: cheap.length ? `Do ${money(max, cur)}:` : `Nemamo ništa do ${money(max, cur)}. Najjeftinije je ${money(Math.min(...live.map((i) => i.price)), cur)}.`,
       items: cheap.slice(0, 6),
     }
   }
 
-  // brzo
-  if (has(q, 'brzo', 'najbrz', 'zurim', 'na brzin')) {
+  // ── brzo ──
+  if (/(brzo|najbrz|zurim|na brzin|nemam vremena)/.test(q)) {
     const fast = live.filter((i) => i.prepTime).sort((a, b) => a.prepTime - b.prepTime)
+    return { text: fast.length ? 'Ovo se sprema najbrže:' : 'Vreme pripreme nije uneto — pitajte konobara.', items: fast.slice(0, 5) }
+  }
+
+  // ── konkretno jelo ili sastojak (pršut, hobotnica, sir…) ──
+  const found = search(live, words)
+  if (found.length) {
     return {
-      text: fast.length ? 'Ovo se sprema najbrže:' : 'Vreme pripreme nije uneto — pitajte osoblje.',
-      items: fast.slice(0, 5),
+      text: found.length === 1 ? 'Da, imamo:' : 'Da, imamo ovo:',
+      items: found.slice(0, 6),
     }
   }
 
-  // radno vreme
-  if (has(q, 'radno vreme', 'do kad', 'otvoreno', 'zatvarate')) {
-    return { text: rest?.hours ? `Radno vreme: ${rest.hours}` : 'Radno vreme nije uneto.', items: [] }
+  // ── preporuka ──
+  if (/(preporu|sta da|najbolj|sta je dobro|savet|ne znam sta|izabe)/.test(q) || !words.length) {
+    const top = live
+      .filter((i) => scores[i.id]?.count || i.badges?.includes('bestseller') || i.featured)
+      .sort((a, b) => rated(b) - rated(a))
+    const pick = (top.length ? top : live).slice(0, 4)
+    return { text: pick.length ? 'Evo šta gosti najviše hvale:' : 'Meni se još popunjava.', items: pick }
   }
 
-  // pretraga po nazivu ili sastojku
-  const words = q.split(/\s+/).filter((w) => w.length > 2)
-  if (words.length) {
-    const found = live.filter((i) =>
-      words.some((w) => norm(`${i.name} ${i.desc} ${i.ingredients}`).includes(w))
-    )
-    if (found.length) return { text: 'Pronašao sam ovo:', items: found.slice(0, 6) }
-  }
-
+  // ── iskreno „ne znam" umesto pogrešnog pogotka ──
   return {
     text:
-      'Na to vam bolje odgovara osoblje. Mogu da pomognem oko jela: pitajte me šta da naručite, ' +
-      'šta je bez mesa, šta je ljuto, šta je najbolje ocenjeno ili šta ima do određene cene.',
+      'To nemam u meniju. Pitajte konobara — možda imaju nešto što nije upisano. ' +
+      'Ja mogu da pomognem oko jela: šta da naručite, šta je bez mesa, šta je ljuto ili kiselo, ' +
+      'i šta ima do određene cene.',
     items: [],
   }
 }
