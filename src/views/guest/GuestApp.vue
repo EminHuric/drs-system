@@ -299,6 +299,18 @@ const zones = computed(() =>
 
 const activeZone = computed(() => zones.value.find((z) => z.id === pickZone.value) || zones.value[0])
 
+const pickableTables = computed(() =>
+  tables.value
+    .filter((t) => t.active !== false)
+    .slice()
+    .sort((a, b) => {
+      const na = Number(a.label)
+      const nb = Number(b.label)
+      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb
+      return String(a.label).localeCompare(String(b.label), 'sr')
+    })
+)
+
 function pickTable(t) {
   tableId.value = t.id
   tableLabel.value = t.label
@@ -898,7 +910,7 @@ onBeforeUnmount(() => observer?.disconnect())
           :class="{ on: activeCat === c.id }"
           @click="goCat(c.id)"
         >
-          {{ c.emoji }} {{ c.name }}
+          {{ c.name }}
         </button>
       </nav>
     </div>
@@ -930,31 +942,30 @@ onBeforeUnmount(() => observer?.disconnect())
                 <span class="dish-photo">
                   <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
                   <span v-else class="dish-fallback">{{ it.emoji || '🍽️' }}</span>
-
                   <span v-if="topBadge(it)" class="dish-flag" :class="'flag-' + topBadge(it).tone">
                     {{ topBadge(it).icon }} {{ topBadge(it).label }}
                   </span>
-
                   <span v-if="cart.qtyOf(it.id)" class="dish-qty">{{ cart.qtyOf(it.id) }}</span>
-
-                  <span
-                    v-if="!closed"
-                    class="dish-add"
-                    role="button"
-                    tabindex="0"
-                    :aria-label="'Dodaj ' + it.name"
-                    @click.stop="quickAdd(it)"
-                    @keydown.enter.stop="quickAdd(it)"
-                  >+</span>
                 </span>
-
                 <span class="dish-body">
                   <strong class="dish-name">{{ it.name }}</strong>
                   <span v-if="it.desc" class="dish-desc">{{ it.desc }}</span>
+                  <span v-if="it.portion || it.prepTime" class="dish-specs">
+                    <span v-if="it.portion">{{ it.portion }}</span>
+                    <span v-if="it.prepTime">⏱ {{ it.prepTime }} min</span>
+                  </span>
                   <span class="dish-foot">
                     <span class="dish-price">{{ money(it.price, cur) }}</span>
                     <s v-if="it.oldPrice > it.price" class="dish-old">{{ money(it.oldPrice, cur) }}</s>
-                    <span v-if="it.portion" class="dish-portion">{{ it.portion }}</span>
+                    <span
+                      v-if="!closed"
+                      class="dish-add"
+                      role="button"
+                      tabindex="0"
+                      :aria-label="'Dodaj ' + it.name"
+                      @click.stop="quickAdd(it)"
+                      @keydown.enter.stop="quickAdd(it)"
+                    >＋</span>
                   </span>
                 </span>
               </button>
@@ -989,37 +1000,36 @@ onBeforeUnmount(() => observer?.disconnect())
 
           <!-- kategorije -->
           <section v-for="c in sections" :id="'c-' + c.id" :key="c.id" :data-cat="c.id" class="sec">
-            <h2 class="sec-title">{{ c.emoji }} {{ c.name }}</h2>
+            <h2 class="sec-title">{{ c.name }}</h2>
             <div class="grid">
               <button v-for="it in c.items" :key="it.id" class="dish" @click="openDetail(it)">
                 <span class="dish-photo">
                   <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
                   <span v-else class="dish-fallback">{{ it.emoji || '🍽️' }}</span>
-
                   <span v-if="topBadge(it)" class="dish-flag" :class="'flag-' + topBadge(it).tone">
                     {{ topBadge(it).icon }} {{ topBadge(it).label }}
                   </span>
-
                   <span v-if="cart.qtyOf(it.id)" class="dish-qty">{{ cart.qtyOf(it.id) }}</span>
-
-                  <span
-                    v-if="!closed"
-                    class="dish-add"
-                    role="button"
-                    tabindex="0"
-                    :aria-label="'Dodaj ' + it.name"
-                    @click.stop="quickAdd(it)"
-                    @keydown.enter.stop="quickAdd(it)"
-                  >+</span>
                 </span>
-
                 <span class="dish-body">
                   <strong class="dish-name">{{ it.name }}</strong>
                   <span v-if="it.desc" class="dish-desc">{{ it.desc }}</span>
+                  <span v-if="it.portion || it.prepTime" class="dish-specs">
+                    <span v-if="it.portion">{{ it.portion }}</span>
+                    <span v-if="it.prepTime">⏱ {{ it.prepTime }} min</span>
+                  </span>
                   <span class="dish-foot">
                     <span class="dish-price">{{ money(it.price, cur) }}</span>
                     <s v-if="it.oldPrice > it.price" class="dish-old">{{ money(it.oldPrice, cur) }}</s>
-                    <span v-if="it.portion" class="dish-portion">{{ it.portion }}</span>
+                    <span
+                      v-if="!closed"
+                      class="dish-add"
+                      role="button"
+                      tabindex="0"
+                      :aria-label="'Dodaj ' + it.name"
+                      @click.stop="quickAdd(it)"
+                      @keydown.enter.stop="quickAdd(it)"
+                    >＋</span>
                   </span>
                 </span>
               </button>
@@ -1312,11 +1322,18 @@ onBeforeUnmount(() => observer?.disconnect())
       <template v-if="orderType === 'dinein'">
         <div class="field">
           <label class="label">{{ t('table') }} <span class="req">*</span></label>
+          <div v-if="pickableTables.length" class="tablepick">
+            <button
+              v-for="tb in pickableTables"
+              :key="tb.id"
+              class="tp"
+              :class="{ on: tableId === tb.id }"
+              @click="pickTable(tb)"
+            >{{ tb.label }}</button>
+          </div>
           <div class="row">
             <input v-model="tableLabel" class="input grow" placeholder="broj stola" />
-            <button v-if="tables.length" class="btn btn-soft" @click="tablePicker = true">
-              🪑 {{ t('tableFromMap') }}
-            </button>
+            <button v-if="tables.length" class="btn btn-soft" :title="t('tableFromMap')" @click="tablePicker = true">🗺️</button>
           </div>
         </div>
       </template>
@@ -1947,19 +1964,26 @@ onBeforeUnmount(() => observer?.disconnect())
 }
 .tab {
   flex: none;
-  padding: 6px var(--s3);
+  padding: 8px var(--s4);
   border-radius: var(--r-full);
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: 650;
+  letter-spacing: -0.01em;
   color: var(--muted);
-  border: 1px solid var(--line);
-  background: var(--surface);
+  border: 1px solid transparent;
+  background: var(--surface-2);
   transition: all var(--fast);
+  white-space: nowrap;
+}
+.tab:hover {
+  color: var(--ink);
+  background: var(--surface-3);
 }
 .tab.on {
   background: var(--b);
   border-color: var(--b);
   color: #fff;
+  box-shadow: 0 4px 12px -4px var(--b);
 }
 
 /* ── telo ── */
@@ -2082,38 +2106,39 @@ onBeforeUnmount(() => observer?.disconnect())
   font-weight: 800;
 }
 
-/* Dugme sedi preko donje ivice slike — palac ga dohvati bez gledanja. */
+/* Dugme stoji uz cenu, ne preko fotografije — slika ostaje čista,
+   a dugme dobija pun kvadrat od 40px umesto polovine preko ivice. */
 .dish-add {
-  position: absolute;
-  right: 8px;
-  bottom: -18px;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
+  flex: none;
   display: grid;
   place-items: center;
-  border-radius: 50%;
+  border-radius: 13px;
   background: var(--b);
   color: #fff;
-  font-size: 1.4rem;
+  font-size: 1.05rem;
   font-weight: 700;
   line-height: 1;
-  padding-bottom: 3px;
   cursor: pointer;
-  box-shadow: 0 6px 18px -6px var(--b), 0 0 0 4px var(--surface);
-  transition: transform var(--fast);
-  z-index: 1;
+  box-shadow: 0 6px 16px -8px var(--b);
+  transition: transform var(--fast), box-shadow var(--fast), border-radius var(--fast);
 }
-.dish-add:hover,
+.dish-add:hover {
+  transform: translateY(-2px);
+  border-radius: 18px;
+  box-shadow: 0 10px 22px -8px var(--b);
+}
 .dish-add:active {
-  transform: scale(1.12);
+  transform: scale(0.92);
 }
 
 .dish-body {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: var(--s3) var(--s3) var(--s4);
-  padding-right: 52px;
+  gap: 4px;
+  padding: var(--s3);
+  flex: 1;
 }
 .dish-name {
   font-size: var(--fs-base);
@@ -2136,12 +2161,31 @@ onBeforeUnmount(() => observer?.disconnect())
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.dish-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+.dish-specs > span {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 3px 7px;
+  border-radius: var(--r-full);
+  background: var(--surface-2);
+  white-space: nowrap;
+}
+
 .dish-foot {
   display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: auto;
+  padding-top: var(--s2);
+}
+.dish-foot .dish-price {
+  margin-right: auto;
 }
 .dish-price {
   font-size: var(--fs-md);
@@ -2674,6 +2718,52 @@ onBeforeUnmount(() => observer?.disconnect())
   .stepper .btn-icon {
     width: 30px;
     height: 30px;
+  }
+}
+/* ── brzi izbor stola ── */
+.tablepick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(54px, 100%), 1fr));
+  gap: 6px;
+  max-height: 164px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.tp {
+  height: 46px;
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: var(--fs-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: all var(--fast);
+}
+.tp:hover {
+  border-color: var(--line-strong);
+}
+.tp.on {
+  background: var(--b);
+  border-color: var(--b);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+/* ── kartice ulaze u talasu, ne sve odjednom ── */
+@media (prefers-reduced-motion: no-preference) {
+  .dish {
+    animation: dish-in 0.42s var(--ease) both;
+  }
+  .dish:nth-child(2) { animation-delay: 0.04s; }
+  .dish:nth-child(3) { animation-delay: 0.08s; }
+  .dish:nth-child(4) { animation-delay: 0.12s; }
+  .dish:nth-child(5) { animation-delay: 0.16s; }
+  .dish:nth-child(n + 6) { animation-delay: 0.2s; }
+}
+@keyframes dish-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
   }
 }
 </style>

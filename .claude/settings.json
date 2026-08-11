@@ -70,7 +70,11 @@
       "Bash(cd \"c:/Users/Emin/Desktop/Programs/restaurant-orders\" && echo \"=== LIVE_STATUSES ===\" && grep -A2 \"export const LIVE_STATUSES\" src/lib/constants.js | sed 's/^/  /' && echo \"\" && echo \"=== liveOrders u usePanelData ===\" && sed -n '/const liveOrders/,/^  \\)/p' src/composables/usePanelData.js | sed 's/^/  /' && echo \"\" && echo \"=== alarm u PanelLayout ===\" && sed -n '/waiterCalls = computed/,/{ immediate: true }/p' src/views/panel/PanelLayout.vue | sed 's/^/  /')",
       "Bash(node -)",
       "Bash(xargs echo \"  preostalo definicija .grid:\")",
-      "Bash(git commit -q -m 'Meni: mreza sa krupnim fotografijama umesto liste *)"
+      "Bash(git commit -q -m 'Meni: mreza sa krupnim fotografijama umesto liste *)",
+      "Bash(git checkout *)",
+      "Bash(xargs echo \"  tela kartice:\")",
+      "Bash(xargs echo \"  dugmadi +:\")",
+      "Bash(git commit -q -m 'Meni: dugme + van fotografije, sto se bira u istom ekranu *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",
