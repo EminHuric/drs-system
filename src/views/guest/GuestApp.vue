@@ -47,6 +47,7 @@ import { BADGES, LIVE_STATUSES, ORDER_STATUS, PAYMENT_CHOICES } from '@/lib/cons
 import { supportsDelivery, supportsDinein, supportsTakeaway } from '@/lib/restaurant'
 import { GUEST_THEMES, themeStyle } from '@/lib/themes'
 import { LOCALES, applyRestaurantLocale, currentLocale, locale, setLocale, t } from '@/lib/i18n'
+import { ensure as ensureTranslation, tr } from '@/lib/translate'
 import { buildOrderMessage, openWhatsApp } from '@/lib/whatsapp'
 
 const route = useRoute()
@@ -125,10 +126,86 @@ const reviewQuery = computed(() =>
     : null
 )
 
-const { items: categories } = useLiveCollection(catQuery)
-const { items: allItems, loading: itemsLoading } = useLiveCollection(itemQuery)
+const { items: rawCategories } = useLiveCollection(catQuery)
+const { items: rawItems, loading: itemsLoading } = useLiveCollection(itemQuery)
 const { items: tables } = useLiveCollection(tableQuery)
-const { items: allReviews, error: reviewError } = useLiveCollection(reviewQuery)
+const { items: rawReviews, error: reviewError } = useLiveCollection(reviewQuery)
+
+// ═══ prevod sadržaja ══════════════════════════════════════════
+//
+// Dugmad i poruke prevodi i18n — one su unapred napisane. Naziv
+// jela, opis, sastojke, oznake i utiske gostiju kuca vlasnik, pa
+// njih prevodi lib/translate.js preko istog Gemini modela koji
+// već pokreće pomoćnika.
+//
+// Sve ostalo u ekranu radi sa `categories`, `allItems` i
+// `allReviews` i uopšte ne zna da prevod postoji.
+
+const srcLocale = computed(() => rest.value?.guestLocale || 'sr')
+const translated = computed(() => Boolean(rid.value) && locale.value !== srcLocale.value)
+
+function TR(s) {
+  return translated.value ? tr(rid.value, locale.value, srcLocale.value, s) : String(s || '')
+}
+
+const categories = computed(() =>
+  translated.value
+    ? rawCategories.value.map((c) => ({ ...c, name: TR(c.name) }))
+    : rawCategories.value
+)
+
+// `srcName` prati jelo do korpe: gost vidi svoj jezik, a u panel
+// i kuhinju ide naziv onako kako je u meniju upisan.
+const allItems = computed(() =>
+  translated.value
+    ? rawItems.value.map((i) => ({
+        ...i,
+        srcName: i.name,
+        name: TR(i.name),
+        desc: TR(i.desc),
+        ingredients: TR(i.ingredients),
+      }))
+    : rawItems.value
+)
+
+const allReviews = computed(() =>
+  translated.value
+    ? rawReviews.value.map((r) => ({ ...r, text: TR(r.text), reply: TR(r.reply) }))
+    : rawReviews.value
+)
+
+// Tekst o samom lokalu — stoji uz naziv u zaglavlju i u prozoru „O nama".
+const restText = computed(() => ({
+  tagline: TR(rest.value?.tagline),
+  about: TR(rest.value?.about),
+}))
+
+// Sve što treba prevesti, na jednom mestu. Utisci se uzimaju samo
+// oni koji su na ekranu — nema smisla prevoditi šezdeset komentara
+// da bi gost pročitao šest.
+const toTranslate = computed(() => {
+  const out = []
+  const r = rest.value
+  if (r) {
+    out.push(r.tagline, r.about)
+    for (const tg of r.tags || []) out.push(tg.label)
+  }
+  for (const c of rawCategories.value) out.push(c.name)
+  for (const i of rawItems.value) out.push(i.name, i.desc, i.ingredients)
+  // Prvih dvanaest utisaka pokriva ono što gost vidi bez dodatnog
+  // klika; ostali se prevedu kad ih zatraži.
+  for (const v of rawReviews.value.slice(0, 12)) out.push(v.text, v.reply)
+  return out.filter(Boolean)
+})
+
+watch(
+  [rid, locale, srcLocale, toTranslate],
+  () => {
+    if (!translated.value) return
+    ensureTranslation(rid.value, locale.value, srcLocale.value, toTranslate.value)
+  },
+  { immediate: true }
+)
 
 // ═══ moja porudžbina u toku ═══════════════════════════════════
 //
@@ -429,7 +506,7 @@ function tagsOf(it, max = 3) {
 
   for (const id of it.tags || []) {
     const t = ownTags.value[id]
-    if (t) out.push({ id, icon: t.icon || '', label: t.label, tone: t.tone || 'plain' })
+    if (t) out.push({ id, icon: t.icon || '', label: TR(t.label), tone: t.tone || 'plain' })
   }
 
   for (const k of ['bestseller', 'chef', 'discount', 'new', 'spicy', 'vegan', 'glutenfree', 'house']) {
@@ -579,7 +656,9 @@ async function submit() {
           : null,
       lines: lines.value.map((l) => ({
         itemId: l.itemId,
+        // `name` je za osoblje (jezik menija), `label` za gosta.
         name: l.name,
+        label: l.label || l.name,
         price: l.price,
         qty: l.qty,
         note: l.note || '',
@@ -816,7 +895,8 @@ async function submitReservation() {
 // dugme nestalo bez ijedne izmene sa njihove strane.
 const canCallWaiter = computed(
   () =>
-    orderType.value === 'dinein' &&
+    supportsDinein(rest.value) &&
+    orderType.value !== 'delivery' &&
     rest.value?.dinein?.callWaiter !== false &&
     !closed.value
 )
@@ -939,7 +1019,7 @@ onMounted(loadRestaurant)
         </span>
 
         <h1>{{ rest.name }}</h1>
-        <p v-if="rest.tagline" class="tag-line">{{ rest.tagline }}</p>
+        <p v-if="restText.tagline" class="tag-line">{{ restText.tagline }}</p>
 
         <div class="hero-meta">
           <button v-if="reviewsOn && rating.count" class="meta rate-link" @click="goReviews">
@@ -982,18 +1062,6 @@ onMounted(loadRestaurant)
         </span>
         <strong class="truncate bar-name">{{ rest.name }}</strong>
         <input v-model="search" class="input search" :placeholder="t('search')" />
-
-        <!-- Zvonce ostaje nadohvat ruke i kad zaglavlje odskroluje. -->
-        <button
-          v-if="canCallWaiter"
-          class="bar-bell"
-          :class="[callingWaiter && 'btn-spin', waiterCalled && 'called']"
-          :disabled="callingWaiter || waiterCalled"
-          :aria-label="waiterCalled ? t('waiterCalled') : t('callWaiter')"
-          @click="callWaiter"
-        >
-          {{ waiterCalled ? '✅' : '🔔' }}
-        </button>
 
         <!-- Korpa je uvek na istom mestu, i kad je prazna — gost ne
              sme ni na trenutak da se pita gde mu je porudžbina. -->
@@ -1129,9 +1197,9 @@ onMounted(loadRestaurant)
 
 
         <!-- ── o lokalu ─────────────────────────────────── -->
-        <section v-if="rest.about || rest.gallery?.length" class="sec about">
+        <section v-if="restText.about || rest.gallery?.length" class="sec about">
           <h2 class="sec-title">{{ t('aboutUs') }}</h2>
-          <p v-if="rest.about">{{ rest.about }}</p>
+          <p v-if="restText.about">{{ restText.about }}</p>
 
           <div v-if="rest.gallery?.length" class="gallery">
             <button
@@ -1359,7 +1427,7 @@ onMounted(loadRestaurant)
         <li v-for="(l, i) in lines" :key="i">
           <span class="c-emoji">{{ l.emoji || '🍽️' }}</span>
           <div class="grow" style="min-width: 0">
-            <strong class="small truncate">{{ l.name }}</strong>
+            <strong class="small truncate">{{ l.label || l.name }}</strong>
             <span v-if="l.note" class="xs faint truncate">↳ {{ l.note }}</span>
             <span class="xs faint">{{ money(l.price, cur) }} {{ t('perPiece') }}</span>
           </div>
@@ -1666,6 +1734,9 @@ onMounted(loadRestaurant)
       <Transition name="sheet">
         <div v-if="langOpen" class="lang-sheet" :style="themeVars">
           <h4>Izaberite jezik</h4>
+          <!-- Gost treba da zna da meni nije preveo čovek — očekivanja
+               su tako poštena, a greška u prevodu nikoga ne iznenadi. -->
+          <p class="lang-note">Meni i utisci se prevode automatski.</p>
           <div class="lang-grid">
             <button
               v-for="(l, code) in LOCALES"
@@ -1815,6 +1886,12 @@ onMounted(loadRestaurant)
   margin: 0 0 var(--s3);
   text-align: center;
   font-size: var(--fs-sm);
+}
+.lang-note {
+  margin: -6px 0 var(--s3);
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: var(--faint);
 }
 .lang-grid {
   display: grid;
@@ -2033,27 +2110,6 @@ onMounted(loadRestaurant)
   height: 36px;
   min-width: 0;
 }
-.bar-bell {
-  width: 40px;
-  height: 36px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  font-size: 1.05rem;
-  transition: all var(--fast);
-}
-.bar-bell:hover {
-  border-color: var(--b);
-}
-.bar-bell.called {
-  background: var(--tint-ok);
-  border-color: var(--tint-ok);
-  opacity: 1;
-}
-
 .cart-btn {
   position: relative;
   width: 40px;

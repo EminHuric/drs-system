@@ -249,7 +249,7 @@ onMounted(load)
           <li v-for="(l, i) in order.lines" :key="i">
             <span class="qty">{{ l.qty }}×</span>
             <span class="grow">
-              {{ l.name }}
+              {{ l.label || l.name }}
               <em v-if="l.note" class="xs faint" style="display: block">↳ {{ l.note }}</em>
             </span>
             <span class="mono small">{{ money(l.price * l.qty, cur) }}</span>

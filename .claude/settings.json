@@ -112,7 +112,8 @@
       "Read(//c/Users/Emin/.claude/projects/c--Users-Emin-Desktop-Programs-restaurant-orders/memory/**)",
       "Bash(node pay.cjs)",
       "Bash(node gost.cjs)",
-      "Bash(curl -s \"http://localhost:5173/src/views/panel/PanelSettings.vue\")"
+      "Bash(curl -s \"http://localhost:5173/src/views/panel/PanelSettings.vue\")",
+      "Bash(curl -s \"http://localhost:5173/src/lib/translate.js\" -o /dev/null -w \"%{http_code} translate.js\\\\n\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",

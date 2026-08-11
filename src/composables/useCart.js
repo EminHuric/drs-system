@@ -67,7 +67,12 @@ function build(restaurantId) {
     } else {
       lines.value.push({
         itemId: item.id,
-        name: item.name,
+        // Kuhinja i osoblje MORAJU da dobiju naziv onako kako je u
+        // meniju upisan. Gost je možda prebacio meni na nemački, ali
+        // u panelu se ne sme pojaviti „Gemischter Salat" — konobar to
+        // ne prepoznaje. `label` je ono što je gost video.
+        name: item.srcName || item.name,
+        label: item.name,
         price: Number(item.price) || 0,
         emoji: item.emoji || '',
         qty,
