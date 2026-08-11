@@ -56,7 +56,9 @@
       "Bash(xargs echo \"  pojavljivanja u Landing.vue:\")",
       "Bash(grep -o \"tel:+\\\\${PHONE}\\\\|wa.me/\\\\${PHONE}\" src/views/Landing.vue)",
       "Bash(awk '{printf \"  %.0f KB  landing\\\\n\", $5/1024}')",
-      "Bash(grep -n \"^import { auth, db\\\\|LIVE_STATUSES, ORDER_STATUS\\\\|normalizePhone, toDate\\\\|myUid.value = u.uid\" src/views/guest/GuestApp.vue)"
+      "Bash(grep -n \"^import { auth, db\\\\|LIVE_STATUSES, ORDER_STATUS\\\\|normalizePhone, toDate\\\\|myUid.value = u.uid\" src/views/guest/GuestApp.vue)",
+      "Bash(xargs echo \"  pominjanja drs-system u README:\")",
+      "Bash(xargs echo \"  posle ispravke:\")"
     ]
   }
 }

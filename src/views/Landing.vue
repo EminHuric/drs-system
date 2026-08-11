@@ -44,54 +44,47 @@ const feed = computed(() => {
 
 // ── sadržaj ─────────────────────────────────────────────────
 
-const stats = [
-  { n: '3 sek', l: 'od skeniranja do menija' },
-  { n: '0 €', l: 'mesečno za početak' },
-  { n: '6', l: 'jezika za strane goste' },
-  { n: '10', l: 'gotovih izgleda lokala' },
-]
-
 const features = [
   {
     icon: '⚡',
-    title: 'Zvoni dok ne prihvatite',
-    text: 'Nova porudžbina se oglašava svakih par sekundi dok je neko ne preuzme. Doziv konobara dobija ekran preko celog panela. Osoblje ne mora da gleda u ekran — sistem ga sam dozove.',
+    title: 'Ništa vam ne promakne',
+    text: 'Svaka porudžbina i svaki poziv gosta stižu glasno i ostaju na ekranu dok ih neko ne preuzme. Ni u najvećoj gužvi, ni kad je osoblje okrenuto leđima — nema više „mislio sam da si ti uzeo".',
     wide: true,
   },
   {
     icon: '🪑',
-    title: 'Skica vašeg lokala',
-    text: 'Rasporedite stolove prstom, po prostorima — sala, bašta, sprat. Gost dodirne svoj sto i vi znate tačno gde nosite.',
+    title: 'Znate tačno kome nosite',
+    text: 'Nacrtate svoj lokal kakav jeste — sala, bašta, sprat. Gost dodirne svoj sto i porudžbina stiže sa njegovim brojem. Bez lutanja sa tanjirom u ruci.',
   },
   {
     icon: '🛵',
-    title: 'Dostava i za poneti',
-    text: 'Adresa, sprat, tačna lokacija na mapi. Za poneti gost bira „što pre" ili tačan sat — dođe po gotovo, bez zvanja.',
+    title: 'Više gostiju nego što imate stolova',
+    text: 'Isti meni radi i za dostavu i za poneti. Gost poruči sa posla i dođe po gotovo — vi prodate i onima koji nisu stigli da sednu.',
   },
   {
     icon: '💬',
-    title: 'Ćaskanje sa gostom',
-    text: 'Pišete mu direktno u aplikaciji. Dobija obaveštenje na telefon i kad je izašao iz aplikacije.',
+    title: 'Pitanje se rešava u dva reda',
+    text: 'Nema jela? Kasni? Napišete gostu direktno i on to vidi na telefonu. Bez zvanja, bez nesporazuma za stolom.',
   },
   {
     icon: '⭐',
-    title: 'Ocene sa fotografijama',
-    text: 'Gost ocenjuje i kači slike jela. Ocene uz stvarnu porudžbinu nose oznaku „potvrđeno" — ne mogu se lažirati.',
+    title: 'Ocene koje se ne mogu lažirati',
+    text: 'Gost ocenjuje i kači slike jela. Ocena uz stvarnu porudžbinu nosi oznaku „potvrđeno" — vredi više od bilo koje reklame.',
   },
   {
     icon: '🎨',
-    title: 'Vaš brend, ne naš',
-    text: 'Deset gotovih izgleda — luksuz crno-zlatno, zeleno-zlatno, toplo braon, minimal. Boje se same izvuku iz vašeg logotipa.',
+    title: 'Izgleda kao vaš lokal',
+    text: 'Deset gotovih izgleda — od crno-zlatnog za fine dining do toplog braon za konobu. Boje se same izvuku iz vašeg logotipa.',
   },
   {
     icon: '🌍',
-    title: 'Šest jezika',
-    text: 'Nemac, Italijan ili Rus otvara meni na svom jeziku, jednim dodirom zastavice. Za lokale koji žive od turista.',
+    title: 'Stranac poruči bez pomoći',
+    text: 'Nemac, Italijan ili Rus otvara meni na svom jeziku, jednim dodirom zastavice. Konobar ne mora da prevodi jelovnik.',
   },
   {
     icon: '📊',
-    title: 'Izveštaji koji nešto znače',
-    text: 'Promet po danima, šta se najviše prodaje, koji su sati najjači, šta niko ne naručuje.',
+    title: 'Znate šta se stvarno prodaje',
+    text: 'Koje jelo nosi promet, koji sati su najjači, šta stoji u meniju a niko ga ne naručuje. Bez nagađanja.',
   },
 ]
 
@@ -136,19 +129,18 @@ const steps = [
         <div class="hero-text">
           <span class="pill">
             <span class="dot dot-live"></span>
-            Radi u lokalu, na dostavi i za poneti
+            U lokalu · Za poneti · Dostava
           </span>
 
           <h1>
-            Porudžbina koja<br />
-            <span class="hi">sama dozove</span><br />
-            vaše osoblje.
+            Gost više ne čeka<br />
+            <span class="hi">da ga neko primeti.</span>
           </h1>
 
           <p class="lead">
-            Gost skenira kod sa stola i poruči za trideset sekundi. Kod vas zazvoni i
-            <strong>ne prestaje dok neko ne prihvati</strong> — ni jedna porudžbina se ne izgubi
-            zato što je konobar bio okrenut leđima.
+            Skenira kod sa stola i poruči sam, dok mu je jelo još pred očima. Porudžbina vam
+            stiže <strong>u istoj sekundi</strong> — uredno napisana, sa brojem stola. Vi stižete
+            da opslužite više gostiju, a oni odlaze zadovoljni i vraćaju se.
           </p>
 
           <div class="wrap-row hero-cta">
@@ -164,7 +156,7 @@ const steps = [
           </div>
 
           <p class="xs faint">
-            Bez ugovora i bez mesečnih troškova na početku. Postavljanje traje jedno popodne.
+            Postavljanje traje jedno popodne. Bez ugovora, bez obaveze.
           </p>
         </div>
 
@@ -230,22 +222,16 @@ const steps = [
         </div>
       </div>
 
-      <!-- brojke -->
-      <div class="wrap stats">
-        <div v-for="s in stats" :key="s.l" class="stat">
-          <strong>{{ s.n }}</strong>
-          <span>{{ s.l }}</span>
-        </div>
-      </div>
     </section>
 
     <!-- ── dva sistema ───────────────────────────────────── -->
     <section id="sistem" class="wrap section">
       <div class="sec-head">
         <span class="eyebrow">Jedna aplikacija, tri načina</span>
-        <h2>Kafić, picerija ili restoran — isti panel</h2>
+        <h2>Prodajete i onima koji nisu seli za sto</h2>
         <p class="lead-sm">
-          Pri otvaranju naloga biramo šta vaš lokal koristi. Ono što vam ne treba se i ne prikazuje.
+          Kafić, picerija ili restoran — biramo šta vaš lokal koristi. Ono što vam ne treba se
+          nigde i ne prikazuje.
         </p>
       </div>
 
@@ -288,8 +274,8 @@ const steps = [
     <!-- ── mogućnosti ────────────────────────────────────── -->
     <section class="wrap section">
       <div class="sec-head">
-        <span class="eyebrow">Šta dobijate</span>
-        <h2>Sve što lokal traži — i ono na šta niste pomislili</h2>
+        <span class="eyebrow">Zašto lokali prelaze na ovo</span>
+        <h2>Manje trčanja, više prodatih tanjira</h2>
       </div>
 
       <div class="feat-grid">
@@ -323,10 +309,10 @@ const steps = [
         <div class="cta-glow" aria-hidden="true"></div>
         <div class="cta-in">
           <span class="eyebrow">Kontakt</span>
-          <h2>Da vidimo kako bi izgledalo kod vas</h2>
+          <h2>Pogledajte kako bi to izgledalo kod vas</h2>
           <p class="lead-sm">
-            Javite se i za par minuta vam pokažemo sistem na vašem meniju. Bez obaveze i bez
-            pritiska — ako vam ne odgovara, niste izgubili ništa osim jednog poziva.
+            Javite se i pokazaćemo vam sistem sa vašim jelima i vašim imenom. Ako vam ne odgovara,
+            izgubili ste jedan poziv — ništa više.
           </p>
 
           <a class="phone-big" :href="`tel:+${PHONE}`">
@@ -733,35 +719,6 @@ const steps = [
   font-size: 10.5px;
   font-weight: 700;
   text-align: center;
-}
-
-/* ── brojke ── */
-.stats {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
-  gap: var(--s3);
-  margin-top: var(--s8);
-  padding-top: var(--s5);
-  border-top: 1px solid var(--line);
-}
-.stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.stat strong {
-  font-size: var(--fs-xl);
-  font-weight: 780;
-  letter-spacing: -0.03em;
-  background: linear-gradient(100deg, #ff9d5c, #e2603f);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.stat span {
-  font-size: var(--fs-sm);
-  color: var(--muted);
 }
 
 /* ── sekcije ── */
