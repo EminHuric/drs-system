@@ -26,7 +26,7 @@ import Confirm from '@/components/ui/Confirm.vue'
 import Empty from '@/components/ui/Empty.vue'
 import { toast, humanError } from '@/stores/toast'
 import { money } from '@/lib/format'
-import { BADGES, ALLERGENS } from '@/lib/constants'
+import { BADGES, ALLERGENS, TAG_ICONS, TAG_TONES } from '@/lib/constants'
 import ImagePicker from '@/components/ImagePicker.vue'
 import { byItem, fmtRating } from '@/lib/reviews'
 
@@ -182,10 +182,92 @@ function blankItem() {
     image: '',
     categoryId: '',
     badges: [],
+    tags: [],
     allergens: [],
     prepTime: 0,
     active: true,
     featured: false,
+  }
+}
+
+// ═══ oznake koje vlasnik sam pravi ════════════════════════════
+//
+// Oznake žive na dokumentu lokala, a jela nose samo njihove id-eve.
+// Tako preimenovanje „Hit" u „Hit kuće" menja sve odjednom, umesto
+// da se prolazi kroz sto artikala.
+
+const ownTags = computed(() => restaurant.value?.tags || [])
+
+const tagModal = ref(false)
+const tagBusy = ref(false)
+const tagForm = ref({ id: '', label: '', icon: '🔥', tone: 'brand' })
+
+// Prozor se otvara na praznom obrascu; postojeće oznake stoje u njemu
+// i klik na bilo koju prebacuje obrazac u izmenu.
+function openTagBook() {
+  tagForm.value = { id: '', label: '', icon: '🔥', tone: 'brand' }
+  tagModal.value = true
+}
+
+function editTag(t) {
+  tagForm.value = { id: t.id, label: t.label, icon: t.icon || '', tone: t.tone || 'brand' }
+}
+
+async function saveTag() {
+  const f = tagForm.value
+  const label = f.label.trim()
+  if (!label) return toast.error('Upišite naziv oznake.')
+  if (label.length > 22) return toast.error('Naziv oznake je predugačak.')
+
+  const list = [...ownTags.value]
+  if (f.id) {
+    const i = list.findIndex((t) => t.id === f.id)
+    if (i !== -1) list[i] = { id: f.id, label, icon: f.icon, tone: f.tone }
+  } else {
+    if (list.length >= 12) return toast.error('Dvanaest oznaka je više nego dovoljno.')
+    const id = 't' + Date.now().toString(36)
+    list.push({ id, label, icon: f.icon, tone: f.tone })
+    // Nova oznaka se odmah kači na artikal koji se uređuje.
+    if (itemModal.value) itemForm.value.tags.push(id)
+  }
+
+  tagBusy.value = true
+  try {
+    await updateDoc(doc(db, 'restaurants', rid.value), { tags: list, updatedAt: serverTimestamp() })
+    tagModal.value = false
+  } catch (e) {
+    toast.error(humanError(e))
+  } finally {
+    tagBusy.value = false
+  }
+}
+
+// Brisanje oznake je skida sa svih jela u meniju — inače bi jela
+// zadržala id koji više ništa ne znači i oznaka bi nestala nemo.
+async function removeTag(t) {
+  if (!window.confirm('Obrisati oznaku „' + t.label + '"? Skinuće se sa svih jela.')) return
+  tagBusy.value = true
+  try {
+    const batch = writeBatch(db)
+    batch.update(doc(db, 'restaurants', rid.value), {
+      tags: ownTags.value.filter((x) => x.id !== t.id),
+      updatedAt: serverTimestamp(),
+    })
+    for (const it of items.value) {
+      if (it.tags?.includes(t.id)) {
+        batch.update(doc(db, 'restaurants', rid.value, 'items', it.id), {
+          tags: it.tags.filter((x) => x !== t.id),
+        })
+      }
+    }
+    await batch.commit()
+    itemForm.value.tags = itemForm.value.tags?.filter((x) => x !== t.id) || []
+    tagModal.value = false
+    toast.ok('Oznaka je obrisana.')
+  } catch (e) {
+    toast.error(humanError(e))
+  } finally {
+    tagBusy.value = false
   }
 }
 
@@ -203,6 +285,7 @@ function openItem(it = null) {
         image: it.image || '',
         categoryId: it.categoryId || '',
         badges: [...(it.badges || [])],
+        tags: [...(it.tags || [])],
         allergens: [...(it.allergens || [])],
         prepTime: Number(it.prepTime) || 0,
         active: it.active !== false,
@@ -233,6 +316,7 @@ async function saveItem() {
       image: f.image || '',
       categoryId: f.categoryId,
       badges: f.badges,
+      tags: f.tags,
       allergens: f.allergens,
       prepTime: Number(f.prepTime) || 0,
       active: f.active,
@@ -656,6 +740,29 @@ const EMOJIS = [
           <span class="hint">Bedž je najbrži način da gost primeti baš ono što želite da prodate.</span>
         </div>
 
+        <!-- Sopstvene oznake: iste reči koje vlasnik ionako govori
+             gostima. Prave se ovde, u toku uređivanja jela, da se ne
+             prekida posao odlaskom u druga podešavanja. -->
+        <div class="field span2">
+          <label class="label">Vaše oznake</label>
+          <div class="wrap-row">
+            <button
+              v-for="t in ownTags"
+              :key="t.id"
+              class="chip"
+              :class="{ on: itemForm.tags.includes(t.id) }"
+              @click="toggleIn(itemForm.tags, t.id)"
+            >
+              {{ t.icon }} {{ t.label }}
+            </button>
+            <button class="chip chip-new" @click="openTagBook()">＋ Nova oznaka</button>
+          </div>
+          <span class="hint">
+            „Hit kuće", „Vegetarijansko", „Bez šećera" — vaše reči, ne naše.
+            Gost ih vidi na kartici jela.
+          </span>
+        </div>
+
         <div class="field span2">
           <label class="label">Alergeni</label>
           <div class="wrap-row">
@@ -705,6 +812,93 @@ const EMOJIS = [
       @confirm="removeItem"
     />
   </div>
+
+  <!-- ── vaše oznake ────────────────────────────────────── -->
+  <Modal v-if="tagModal" title="Vaše oznake" :busy="tagBusy" @close="tagModal = false">
+    <div class="tagbook">
+      <p v-if="!ownTags.length" class="muted small">
+        Još nemate nijednu. Napravite prvu ispod — pojaviće se na jelu odmah.
+      </p>
+      <template v-else>
+        <div class="wrap-row">
+          <button
+            v-for="t in ownTags"
+            :key="t.id"
+            class="chip"
+            :class="{ on: tagForm.id === t.id }"
+            @click="editTag(t)"
+          >
+            {{ t.icon }} {{ t.label }}
+          </button>
+        </div>
+        <span class="hint">Kliknite na oznaku da je izmenite ili obrišete.</span>
+      </template>
+
+      <div class="field">
+        <label class="label">{{ tagForm.id ? 'Izmena oznake' : 'Nova oznaka' }}</label>
+        <input
+          v-model="tagForm.label"
+          class="input"
+          maxlength="22"
+          placeholder="npr. Hit kuće"
+          @keyup.enter="saveTag"
+        />
+      </div>
+
+      <div class="field">
+        <label class="label">Znak</label>
+        <div class="wrap-row">
+          <button
+            v-for="ic in TAG_ICONS"
+            :key="ic || 'none'"
+            class="chip"
+            :class="{ on: tagForm.icon === ic }"
+            @click="tagForm.icon = ic"
+          >
+            {{ ic || 'bez znaka' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">Boja</label>
+        <div class="wrap-row">
+          <button
+            v-for="tn in TAG_TONES"
+            :key="tn.id"
+            class="chip"
+            :class="{ on: tagForm.tone === tn.id }"
+            @click="tagForm.tone = tn.id"
+          >
+            <i class="dot" :class="'tone-' + tn.id"></i>
+            {{ tn.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="preview">
+        <span class="muted small">Ovako je gost vidi:</span>
+        <span class="dtag" :class="'tone-' + tagForm.tone">
+          {{ tagForm.icon }} {{ tagForm.label || 'Naziv oznake' }}
+        </span>
+      </div>
+    </div>
+
+    <template #foot>
+      <button
+        v-if="tagForm.id"
+        class="btn btn-ghost del"
+        :disabled="tagBusy"
+        @click="removeTag(tagForm)"
+      >
+        Obriši
+      </button>
+      <button class="btn btn-ghost" :disabled="tagBusy" @click="tagModal = false">Zatvori</button>
+      <button class="btn btn-primary" :disabled="tagBusy" @click="saveTag">
+        {{ tagForm.id ? 'Sačuvaj' : 'Dodaj oznaku' }}
+      </button>
+    </template>
+  </Modal>
 </template>
 
 <style scoped>
@@ -886,6 +1080,90 @@ const EMOJIS = [
   display: flex;
   gap: var(--s3);
   align-items: flex-start;
+}
+
+/* ── vaše oznake ── */
+.chip-new {
+  border-style: dashed;
+  color: var(--brand);
+}
+.tagbook {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.preview {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3);
+  border-radius: var(--r);
+  background: var(--surface-2);
+}
+.dtag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: var(--r-full);
+  font-size: 10.5px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+/* Iste boje kao na kartici jela u meniju — vlasnik vidi tačno
+   ono što će gost dobiti, bez iznenađenja posle čuvanja. */
+.tone-plain {
+  background: var(--surface-3);
+  color: var(--muted);
+}
+.tone-gold {
+  background: color-mix(in srgb, #d9a441 16%, transparent);
+  color: #a97b19;
+}
+.tone-hot {
+  background: color-mix(in srgb, #e2603f 15%, transparent);
+  color: #c04a2c;
+}
+.tone-green {
+  background: color-mix(in srgb, #3aa76d 15%, transparent);
+  color: #2c8154;
+}
+.tone-new {
+  background: color-mix(in srgb, #4a7dd6 15%, transparent);
+  color: #3963ad;
+}
+.tone-brand {
+  background: var(--tint-brand);
+  color: var(--brand);
+}
+.dot.tone-plain {
+  background: var(--muted);
+}
+.dot.tone-gold {
+  background: #d9a441;
+}
+.dot.tone-hot {
+  background: #e2603f;
+}
+.dot.tone-green {
+  background: #3aa76d;
+}
+.dot.tone-new {
+  background: #4a7dd6;
+}
+.dot.tone-brand {
+  background: var(--brand);
+}
+.del {
+  color: var(--bad);
+  margin-right: auto;
 }
 .switches {
   display: flex;

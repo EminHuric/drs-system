@@ -96,7 +96,11 @@
       "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/bot.cjs\")",
       "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/edit.cjs\")",
       "Bash(node rev.cjs)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "Bash(firebase login:list)",
+      "Bash(node rows.cjs)",
+      "Bash(curl -s \"http://localhost:5173/src/views/panel/PanelMenu.vue\")",
+      "Bash(curl -s \"http://localhost:5173/src/views/guest/GuestApp.vue\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",

@@ -24,6 +24,12 @@ export function defaultRestaurant(patch = {}) {
     // prekidačem i lokal radi dalje kao da ih nema.
     reviewsEnabled: true,
 
+    // Oznake koje vlasnik sam pravi i kači na jela („Hit kuće",
+    // „Vegetarijansko", „Domaće"). Ugrađeni bedževi ostaju kao
+    // prečica, ali svaki lokal ima svoje reči za svoje goste.
+    // Oblik: { id, label, icon, tone }
+    tags: [],
+
     // Pomoćnik gostu (odgovara o meniju, preporučuje jela).
     assistant: true,
 

@@ -64,6 +64,21 @@ export const BADGES = {
   discount: { label: 'Akcija', icon: '🏷️', tone: 'gold' },
 }
 
+/**
+ * Boje za oznake koje vlasnik sam pravi. Namerno ih je malo —
+ * meni u deset boja ne izgleda bogato nego neuredno.
+ */
+export const TAG_TONES = [
+  { id: 'brand', label: 'Boja lokala' },
+  { id: 'hot', label: 'Crvena' },
+  { id: 'gold', label: 'Zlatna' },
+  { id: 'green', label: 'Zelena' },
+  { id: 'new', label: 'Plava' },
+  { id: 'plain', label: 'Siva' },
+]
+
+export const TAG_ICONS = ['🔥', '⭐', '👨‍🍳', '🌱', '🌶️', '🏠', '✨', '🏷️', '❤️', '🥇', '🍯', '🧊', '']
+
 export const ALLERGENS = [
   'gluten', 'laktoza', 'jaja', 'orašasti plodovi', 'kikiriki',
   'soja', 'riba', 'školjke', 'susam', 'senf',

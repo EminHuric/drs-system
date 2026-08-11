@@ -11,7 +11,7 @@
 //  uživo) i u WhatsApp (stiže i na telefon lokala).
 // ─────────────────────────────────────────────────────────────
 
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import {
   addDoc,
@@ -38,6 +38,7 @@ import ReviewCard from '@/components/ReviewCard.vue'
 import ReviewForm from '@/components/ReviewForm.vue'
 import PhotoViewer from '@/components/PhotoViewer.vue'
 import GuestAssistant from '@/components/GuestAssistant.vue'
+import DishRow from '@/components/DishRow.vue'
 import { byItem, fmtRating, summarize } from '@/lib/reviews'
 import { toast, humanError } from '@/stores/toast'
 import { money, normalizePhone, toDate } from '@/lib/format'
@@ -252,9 +253,14 @@ const sections = computed(() =>
 
 // Prazno znači „sve". Kad gost izabere kategoriju, ostale nestaju —
 // ne skroluje se kroz ceo meni da bi se stiglo do pića.
-const shownSections = computed(() =>
-  activeCat.value ? sections.value.filter((c) => c.id === activeCat.value) : sections.value
-)
+const shownSections = computed(() => {
+  if (!activeCat.value) return sections.value
+  const one = sections.value.filter((c) => c.id === activeCat.value)
+  // Ako izabrana kategorija nestane (vlasnik je obrisao ili je prazna
+  // za ovaj način naručivanja), gost ne sme da ostane pred praznim
+  // ekranom — vraća se ceo meni.
+  return one.length ? one : sections.value
+})
 
 const featured = computed(() => available.value.filter((i) => i.featured).slice(0, 8))
 
@@ -405,17 +411,41 @@ function addFromDetail() {
 }
 
 /**
- * Na slici stoji SAMO jedan bedž — onaj koji najviše znači gostu.
- * Gomila oznaka preko fotografije pretrpa mrežu i ništa se ne pročita.
+ * Oznake na kartici: prvo ocena gostiju, pa vlasnikove sopstvene
+ * oznake, pa ugrađeni bedževi. Najviše tri — preko toga se red
+ * oznaka prelomi i kartica izgubi red.
  */
-function topBadge(it) {
-  if (itemScores.value[it.id]?.count) {
-    return { icon: '★', label: fmtRating(itemScores.value[it.id].avg), tone: 'gold' }
+const ownTags = computed(() => {
+  const map = {}
+  for (const t of rest.value?.tags || []) map[t.id] = t
+  return map
+})
+
+function tagsOf(it, max = 3) {
+  const out = []
+
+  const sc = itemScores.value[it.id]
+  if (sc?.count) out.push({ id: '_r', icon: '★', label: fmtRating(sc.avg), tone: 'gold' })
+
+  for (const id of it.tags || []) {
+    const t = ownTags.value[id]
+    if (t) out.push({ id, icon: t.icon || '', label: t.label, tone: t.tone || 'plain' })
   }
-  const order = ['bestseller', 'chef', 'discount', 'new', 'spicy', 'vegan']
-  const key = order.find((k) => it.badges?.includes(k))
-  return key ? { icon: BADGES[key].icon, label: BADGES[key].label, tone: BADGES[key].tone } : null
+
+  for (const k of ['bestseller', 'chef', 'discount', 'new', 'spicy', 'vegan', 'glutenfree', 'house']) {
+    if (it.badges?.includes(k)) {
+      out.push({ id: k, icon: BADGES[k].icon, label: BADGES[k].label, tone: BADGES[k].tone })
+    }
+  }
+
+  return out.slice(0, max)
 }
+
+// Bezbojna oznaka nema svoju klasu u paleti — ide na sivu.
+const badgeTone = (t) => 'badge-' + (t === 'plain' ? 'muted' : t)
+
+// U prozoru se vide sve oznake jela.
+const detailTags = computed(() => (detail.value ? tagsOf(detail.value, 99) : []))
 
 function quickAdd(item) {
   cart.value.add(item, 1, '')
@@ -835,7 +865,6 @@ function pickLocale(code) {
 // ═══ kretanje kroz meni ═══════════════════════════════════════
 
 const activeCat = ref('')
-let observer = null
 
 const showTabs = computed(
   () =>
@@ -844,21 +873,6 @@ const showTabs = computed(
     (rest.value?.mode !== 'both' || Boolean(orderType.value))
 )
 
-function setupSpy() {
-  observer?.disconnect()
-  observer = new IntersectionObserver(
-    (entries) => {
-      for (const e of entries) if (e.isIntersecting) activeCat.value = e.target.dataset.cat
-    },
-    { rootMargin: '-160px 0px -68% 0px' }
-  )
-  requestAnimationFrame(() => {
-    document.querySelectorAll('[data-cat]').forEach((el) => observer.observe(el))
-  })
-}
-
-watch(sections, setupSpy)
-
 function goCat(id) {
   activeCat.value = id
   // Vrati pogled na vrh liste — inače gost ostane na pola stare kategorije.
@@ -866,7 +880,6 @@ function goCat(id) {
 }
 
 onMounted(loadRestaurant)
-onBeforeUnmount(() => observer?.disconnect())
 </script>
 
 <template>
@@ -1025,37 +1038,17 @@ onBeforeUnmount(() => observer?.disconnect())
         <section v-else-if="results" class="sec">
           <h2 class="sec-title">{{ t('searchResults') }}</h2>
           <div v-if="results.length" class="grid">
-              <button v-for="it in results" :key="it.id" class="dish" @click="openDetail(it)">
-                <span class="dish-photo">
-                  <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
-                  <span v-else class="dish-fallback">{{ it.emoji || '🍽️' }}</span>
-                  <span v-if="topBadge(it)" class="dish-flag" :class="'flag-' + topBadge(it).tone">
-                    {{ topBadge(it).icon }} {{ topBadge(it).label }}
-                  </span>
-                  <span v-if="cart.qtyOf(it.id)" class="dish-qty">{{ cart.qtyOf(it.id) }}</span>
-                </span>
-                <span class="dish-body">
-                  <strong class="dish-name">{{ it.name }}</strong>
-                  <span v-if="it.desc" class="dish-desc">{{ it.desc }}</span>
-                  <span v-if="it.portion || it.prepTime" class="dish-specs">
-                    <span v-if="it.portion">{{ it.portion }}</span>
-                    <span v-if="it.prepTime">⏱ {{ it.prepTime }} min</span>
-                  </span>
-                  <span class="dish-foot">
-                    <span class="dish-price">{{ money(it.price, cur) }}</span>
-                    <s v-if="it.oldPrice > it.price" class="dish-old">{{ money(it.oldPrice, cur) }}</s>
-                    <span
-                      v-if="!closed"
-                      class="dish-add"
-                      role="button"
-                      tabindex="0"
-                      :aria-label="'Dodaj ' + it.name"
-                      @click.stop="quickAdd(it)"
-                      @keydown.enter.stop="quickAdd(it)"
-                    >＋</span>
-                  </span>
-                </span>
-              </button>
+            <DishRow
+              v-for="it in results"
+              :key="it.id"
+              :item="it"
+              :currency="cur"
+              :tags="tagsOf(it)"
+              :qty="cart.qtyOf(it.id)"
+              :closed="closed"
+              @open="openDetail"
+              @add="quickAdd"
+            />
           </div>
           <p v-else class="muted center" style="padding: var(--s6)">
             Ništa nije pronađeno za „{{ search }}“.
@@ -1064,7 +1057,7 @@ onBeforeUnmount(() => observer?.disconnect())
 
         <template v-else>
           <!-- izdvojeno -->
-          <section v-if="featured.length" class="sec">
+          <section v-if="featured.length && !activeCat" class="sec">
             <h2 class="sec-title">{{ t('chefPick') }}</h2>
             <div class="rail">
               <button v-for="it in featured" :key="it.id" class="rail-card" @click="openDetail(it)">
@@ -1085,43 +1078,27 @@ onBeforeUnmount(() => observer?.disconnect())
             :text="t('menuComingHint')"
           />
 
-          <!-- kategorije -->
-          <section v-for="c in shownSections" :id="'c-' + c.id" :key="c.id" :data-cat="c.id" class="sec">
-            <h2 class="sec-title">{{ c.name }}</h2>
-            <div class="grid">
-              <button v-for="it in c.items" :key="it.id" class="dish" @click="openDetail(it)">
-                <span class="dish-photo">
-                  <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
-                  <span v-else class="dish-fallback">{{ it.emoji || '🍽️' }}</span>
-                  <span v-if="topBadge(it)" class="dish-flag" :class="'flag-' + topBadge(it).tone">
-                    {{ topBadge(it).icon }} {{ topBadge(it).label }}
-                  </span>
-                  <span v-if="cart.qtyOf(it.id)" class="dish-qty">{{ cart.qtyOf(it.id) }}</span>
-                </span>
-                <span class="dish-body">
-                  <strong class="dish-name">{{ it.name }}</strong>
-                  <span v-if="it.desc" class="dish-desc">{{ it.desc }}</span>
-                  <span v-if="it.portion || it.prepTime" class="dish-specs">
-                    <span v-if="it.portion">{{ it.portion }}</span>
-                    <span v-if="it.prepTime">⏱ {{ it.prepTime }} min</span>
-                  </span>
-                  <span class="dish-foot">
-                    <span class="dish-price">{{ money(it.price, cur) }}</span>
-                    <s v-if="it.oldPrice > it.price" class="dish-old">{{ money(it.oldPrice, cur) }}</s>
-                    <span
-                      v-if="!closed"
-                      class="dish-add"
-                      role="button"
-                      tabindex="0"
-                      :aria-label="'Dodaj ' + it.name"
-                      @click.stop="quickAdd(it)"
-                      @keydown.enter.stop="quickAdd(it)"
-                    >＋</span>
-                  </span>
-                </span>
-              </button>
-            </div>
-          </section>
+          <!-- Kategorije. Prelaz je kratak (0.28s) i pomeraj mali —
+               dovoljno da oko isprati promenu, prekratko da smeta
+               nekome ko zna šta traži. -->
+          <TransitionGroup name="sec" tag="div" class="secs">
+            <section v-for="c in shownSections" :key="c.id" class="sec">
+              <h2 class="sec-title">{{ c.name }}</h2>
+              <div class="grid">
+                <DishRow
+                  v-for="it in c.items"
+                  :key="it.id"
+                  :item="it"
+                  :currency="cur"
+                  :tags="tagsOf(it)"
+                  :qty="cart.qtyOf(it.id)"
+                  :closed="closed"
+                  @open="openDetail"
+                  @add="quickAdd"
+                />
+              </div>
+            </section>
+          </TransitionGroup>
         </template>
 
 
@@ -1266,14 +1243,11 @@ onBeforeUnmount(() => observer?.disconnect())
 
       <p v-if="detail.desc" class="muted">{{ detail.desc }}</p>
 
-      <div v-if="detail.badges?.length" class="wrap-row">
-        <span
-          v-for="b in detail.badges"
-          :key="b"
-          class="badge"
-          :class="'badge-' + (BADGES[b]?.tone || '')"
-        >
-          {{ BADGES[b]?.icon }} {{ BADGES[b]?.label }}
+      <!-- U prozoru jela stoje sve oznake, ne samo prve tri —
+           tu ima mesta i gost je već zainteresovan. -->
+      <div v-if="detailTags.length" class="wrap-row">
+        <span v-for="tg in detailTags" :key="tg.id" class="badge" :class="badgeTone(tg.tone)">
+          {{ tg.icon }} {{ tg.label }}
         </span>
       </div>
 
@@ -2211,205 +2185,70 @@ onBeforeUnmount(() => observer?.disconnect())
 }
 
 /* ── mreža jela ──────────────────────────────────────
-   Dve kolone na telefonu, krupna fotografija na vrhu. Hranu
-   prodaje slika — zato ona, a ne tekst, nosi karticu. */
+   Jedno jelo u redu: naziv u punoj veličini, dva reda opisa,
+   red oznaka i krupna cena. Na širokom ekranu dve kolone,
+   jer bi jedan red preko 900px bio prazan s desne strane. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--s3);
 }
-@media (min-width: 720px) {
+@media (min-width: 760px) {
   .grid {
-    grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-.dish {
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--r-md);
-  background: var(--surface);
-  overflow: hidden;
-  text-align: left;
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--fast), box-shadow var(--fast);
-}
-.dish:hover {
-  box-shadow: var(--shadow);
-  transform: translateY(-3px);
-}
-.dish:active {
-  transform: scale(0.985);
-}
-.dish:hover .dish-photo img {
-  transform: scale(1.06);
-}
-
-.dish-photo {
+/* ── prelaz među kategorijama ── */
+.secs {
   position: relative;
-  aspect-ratio: 1;
-  background: var(--surface-3);
-  display: grid;
-  place-items: center;
-  overflow: hidden;
 }
-.dish-photo img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.5s var(--ease);
+.sec-enter-active {
+  transition: opacity 0.28s var(--ease), transform 0.28s var(--ease);
 }
-/* Bez fotografije: topla podloga u boji lokala umesto sive rupe. */
-.dish-fallback {
-  font-size: 2.8rem;
-  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.18));
-}
-.dish-photo:has(.dish-fallback) {
-  background: linear-gradient(145deg, color-mix(in srgb, var(--b) 24%, var(--surface)), var(--surface-3));
-}
-
-.dish-flag {
+.sec-leave-active {
+  transition: opacity 0.16s var(--ease), transform 0.16s var(--ease);
   position: absolute;
-  top: 8px;
-  left: 8px;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 4px 8px;
-  border-radius: var(--r-full);
-  font-size: 11px;
-  font-weight: 750;
-  background: rgba(12, 12, 14, 0.72);
-  color: #fff;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  max-width: calc(100% - 16px);
-  overflow: hidden;
-  white-space: nowrap;
+  inset: 0 0 auto 0;
 }
-.flag-gold {
-  color: #ffd464;
+.sec-enter-from {
+  opacity: 0;
+  transform: translateY(10px);
 }
-.flag-hot {
-  color: #ff9a72;
+.sec-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
-.flag-green {
-  color: #8fe0aa;
+/* Jela unutar kategorije ulaze jedno po jedno, sa malim kašnjenjem. */
+.sec-enter-active .grid > * {
+  animation: rowIn 0.34s var(--ease) backwards;
 }
-
-.dish-qty {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 7px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-full);
-  background: var(--ink);
-  color: var(--bg);
-  font-size: 12px;
-  font-weight: 800;
+.sec-enter-active .grid > :nth-child(2) {
+  animation-delay: 0.03s;
 }
-
-/* Dugme stoji uz cenu, ne preko fotografije — slika ostaje čista,
-   a dugme dobija pun kvadrat od 40px umesto polovine preko ivice. */
-.dish-add {
-  width: 40px;
-  height: 40px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  border-radius: 13px;
-  background: var(--b);
-  color: #fff;
-  font-size: 1.05rem;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  box-shadow: 0 6px 16px -8px var(--b);
-  transition: transform var(--fast), box-shadow var(--fast), border-radius var(--fast);
+.sec-enter-active .grid > :nth-child(3) {
+  animation-delay: 0.06s;
 }
-.dish-add:hover {
-  transform: translateY(-2px);
-  border-radius: 18px;
-  box-shadow: 0 10px 22px -8px var(--b);
+.sec-enter-active .grid > :nth-child(4) {
+  animation-delay: 0.09s;
 }
-.dish-add:active {
-  transform: scale(0.92);
+.sec-enter-active .grid > :nth-child(n + 5) {
+  animation-delay: 0.12s;
 }
-
-.dish-body {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: var(--s3);
-  flex: 1;
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
 }
-.dish-name {
-  font-size: var(--fs-base);
-  font-weight: 650;
-  line-height: 1.28;
-  letter-spacing: -0.012em;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.dish-desc {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.dish-specs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
-}
-.dish-specs > span {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--muted);
-  padding: 3px 7px;
-  border-radius: var(--r-full);
-  background: var(--surface-2);
-  white-space: nowrap;
-}
-
-.dish-foot {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: auto;
-  padding-top: var(--s2);
-}
-.dish-foot .dish-price {
-  margin-right: auto;
-}
-.dish-price {
-  font-size: var(--fs-md);
-  font-weight: 780;
-  letter-spacing: -0.025em;
-  font-variant-numeric: tabular-nums;
-}
-.dish-old {
-  font-size: var(--fs-xs);
-  color: var(--faint);
-}
-.dish-portion {
-  font-size: 10px;
-  color: var(--faint);
-  padding: 2px 6px;
-  border-radius: var(--r-full);
-  background: var(--surface-2);
+/* Ko je isključio animacije u sistemu — njemu ništa ne skače. */
+@media (prefers-reduced-motion: reduce) {
+  .sec-enter-active,
+  .sec-leave-active,
+  .sec-enter-active .grid > * {
+    transition: none;
+    animation: none;
+  }
 }
 
 /* ── izdvojeno ── */
@@ -2941,23 +2780,6 @@ onBeforeUnmount(() => observer?.disconnect())
   transform: scale(1.05);
 }
 
-/* ── kartice ulaze u talasu, ne sve odjednom ── */
-@media (prefers-reduced-motion: no-preference) {
-  .dish {
-    animation: dish-in 0.42s var(--ease) both;
-  }
-  .dish:nth-child(2) { animation-delay: 0.04s; }
-  .dish:nth-child(3) { animation-delay: 0.08s; }
-  .dish:nth-child(4) { animation-delay: 0.12s; }
-  .dish:nth-child(5) { animation-delay: 0.16s; }
-  .dish:nth-child(n + 6) { animation-delay: 0.2s; }
-}
-@keyframes dish-in {
-  from {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-}
 /* ── izabrani sto ── */
 .picked {
   padding: 10px var(--s3);
