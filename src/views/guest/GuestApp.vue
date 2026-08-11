@@ -45,7 +45,7 @@ import { orderCode } from '@/lib/codes'
 import { BADGES, LIVE_STATUSES, ORDER_STATUS } from '@/lib/constants'
 import { supportsDelivery, supportsDinein, supportsTakeaway } from '@/lib/restaurant'
 import { GUEST_THEMES, themeStyle } from '@/lib/themes'
-import { LOCALES, applyRestaurantLocale, locale, setLocale, t } from '@/lib/i18n'
+import { LOCALES, applyRestaurantLocale, currentLocale, locale, setLocale, t } from '@/lib/i18n'
 import { buildOrderMessage, openWhatsApp } from '@/lib/whatsapp'
 
 const route = useRoute()
@@ -207,16 +207,53 @@ const available = computed(() => allItems.value.filter((i) => i.active !== false
 
 const search = ref('')
 
+/** Naša slova i veličina slova ne smeju da utiču na pretragu. */
+function plain(x) {
+  return String(x || '')
+    .toLowerCase()
+    .replace(/[čć]/g, 'c')
+    .replace(/š/g, 's')
+    .replace(/ž/g, 'z')
+    .replace(/đ/g, 'dj')
+}
+
+// Traži se po nazivu, opisu, sastojcima i kategoriji — i to svaka
+// reč zasebno, pa „pileca salata" nađe i „Cezar salata sa piletinom".
+// Naziv vredi najviše, pa najbolji pogodak izlazi na vrh.
 const results = computed(() => {
-  const q = search.value.trim().toLowerCase()
+  const q = plain(search.value).trim()
   if (!q) return null
-  return available.value.filter((i) => `${i.name} ${i.desc}`.toLowerCase().includes(q))
+
+  const words = q.split(/\s+/).filter(Boolean)
+  const catName = Object.fromEntries(categories.value.map((c) => [c.id, plain(c.name)]))
+
+  return available.value
+    .map((i) => {
+      const name = plain(i.name)
+      const extra = plain([i.desc, i.ingredients, catName[i.categoryId]].join(' '))
+      let score = 0
+      for (const w of words) {
+        if (name.startsWith(w)) score += 12
+        else if (name.includes(w)) score += 8
+        else if (extra.includes(w)) score += 3
+      }
+      return { i, score }
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.i)
 })
 
 const sections = computed(() =>
   categories.value
     .map((c) => ({ ...c, items: available.value.filter((i) => i.categoryId === c.id) }))
     .filter((c) => c.items.length)
+)
+
+// Prazno znači „sve". Kad gost izabere kategoriju, ostale nestaju —
+// ne skroluje se kroz ceo meni da bi se stiglo do pića.
+const shownSections = computed(() =>
+  activeCat.value ? sections.value.filter((c) => c.id === activeCat.value) : sections.value
 )
 
 const featured = computed(() => available.value.filter((i) => i.featured).slice(0, 8))
@@ -786,6 +823,15 @@ async function callWaiter() {
   }
 }
 
+// ═══ jezik ════════════════════════════════════════════════════
+
+const langOpen = ref(false)
+
+function pickLocale(code) {
+  setLocale(code)
+  langOpen.value = false
+}
+
 // ═══ kretanje kroz meni ═══════════════════════════════════════
 
 const activeCat = ref('')
@@ -815,7 +861,8 @@ watch(sections, setupSpy)
 
 function goCat(id) {
   activeCat.value = id
-  document.getElementById('c-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // Vrati pogled na vrh liste — inače gost ostane na pola stare kategorije.
+  document.querySelector('.body')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 onMounted(loadRestaurant)
@@ -849,18 +896,13 @@ onBeforeUnmount(() => observer?.disconnect())
       <div class="veil" aria-hidden="true"></div>
 
       <div class="hero-tools">
-        <!-- Turista mora da može da prebaci jezik u jednom dodiru. -->
+        <!-- Šest zastavica u nizu je bilo šareno i nečitko. Sada stoji
+             samo trenutni jezik; ostali se otvore kad zatrebaju. -->
         <div class="lang">
-          <button
-            v-for="(l, code) in LOCALES"
-            :key="code"
-            class="lang-btn"
-            :class="{ on: locale === code }"
-            :title="l.name"
-            :aria-label="l.name"
-            @click="setLocale(code)"
-          >
-            {{ l.flag }}
+          <button class="lang-now" :aria-expanded="langOpen" @click="langOpen = !langOpen">
+            <span class="lang-flag">{{ currentLocale.flag }}</span>
+            <span class="lang-name">{{ currentLocale.name }}</span>
+            <span class="lang-caret" :class="{ up: langOpen }">⌄</span>
           </button>
         </div>
         <ThemeToggle v-if="freeTheme" />
@@ -883,15 +925,27 @@ onBeforeUnmount(() => observer?.disconnect())
           </button>
           <span v-if="rest.city" class="meta">📍 {{ rest.city }}</span>
           <span v-if="rest.hours" class="meta">🕒 {{ rest.hours }}</span>
-          <span v-if="supportsDelivery(rest)" class="meta">
-            🛵 Dostava<template v-if="rest.delivery?.etaMin"> ~{{ rest.delivery.etaMin }} min</template>
-          </span>
+          <span v-if="supportsDelivery(rest)" class="meta">🛵 Dostava</span>
           <span v-if="supportsDinein(rest)" class="meta">🍽️ U lokalu</span>
         </div>
 
-        <button v-if="canReserve" class="btn btn-outline reserve-btn" @click="openReservation">
-          {{ t('reserve') }}
-        </button>
+        <div class="hero-actions">
+          <button v-if="canReserve" class="btn btn-outline" @click="openReservation">
+            {{ t('reserve') }}
+          </button>
+
+          <!-- Zvonce stoji uz vrh, gde ga gost traži kad mu nešto zatreba —
+               a ne na dnu menija posle svih jela. -->
+          <button
+            v-if="orderType === 'dinein' && rest.dinein?.callWaiter && !closed"
+            class="btn bell"
+            :class="[callingWaiter && 'btn-spin', waiterCalled && 'called']"
+            :disabled="callingWaiter || waiterCalled"
+            @click="callWaiter"
+          >
+            {{ waiterCalled ? t('waiterCalled') : t('callWaiter') }}
+          </button>
+        </div>
       </div>
     </header>
 
@@ -935,6 +989,7 @@ onBeforeUnmount(() => observer?.disconnect())
       <!-- Kategorije žive u istoj lepljivoj traci — inače bi se dve
            lepljive trake preklapale i trebalo bi pogađati visinu. -->
       <nav v-if="showTabs" class="tabs">
+        <button class="tab" :class="{ on: !activeCat }" @click="goCat('')">Sve</button>
         <button
           v-for="c in sections"
           :key="c.id"
@@ -1031,7 +1086,7 @@ onBeforeUnmount(() => observer?.disconnect())
           />
 
           <!-- kategorije -->
-          <section v-for="c in sections" :id="'c-' + c.id" :key="c.id" :data-cat="c.id" class="sec">
+          <section v-for="c in shownSections" :id="'c-' + c.id" :key="c.id" :data-cat="c.id" class="sec">
             <h2 class="sec-title">{{ c.name }}</h2>
             <div class="grid">
               <button v-for="it in c.items" :key="it.id" class="dish" @click="openDetail(it)">
@@ -1069,24 +1124,6 @@ onBeforeUnmount(() => observer?.disconnect())
           </section>
         </template>
 
-        <!-- dozivanje konobara -->
-        <div v-if="orderType === 'dinein' && rest.dinein?.callWaiter && !closed" class="waiter">
-          <button
-            class="btn btn-lg btn-block waiter-btn"
-            :class="[callingWaiter && 'btn-spin', waiterCalled && 'called']"
-            :disabled="callingWaiter || waiterCalled"
-            @click="callWaiter"
-          >
-            {{ waiterCalled ? t('waiterCalled') : t('callWaiter') }}
-          </button>
-          <p class="xs faint center" style="margin-top: 6px">
-            {{
-              waiterCalled
-                ? t('waiterRinging')
-                : t('waiterHint')
-            }}
-          </p>
-        </div>
 
         <!-- ── o lokalu ─────────────────────────────────── -->
         <section v-if="rest.about || rest.gallery?.length" class="sec about">
@@ -1621,6 +1658,31 @@ onBeforeUnmount(() => observer?.disconnect())
       @open="openDetail"
     />
 
+    <!-- ── izbor jezika ───────────────────────────────── -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="langOpen" class="scrim" @click="langOpen = false"></div>
+      </Transition>
+      <Transition name="sheet">
+        <div v-if="langOpen" class="lang-sheet" :style="themeVars">
+          <h4>Izaberite jezik</h4>
+          <div class="lang-grid">
+            <button
+              v-for="(l, code) in LOCALES"
+              :key="code"
+              class="lang-row"
+              :class="{ on: locale === code }"
+              @click="pickLocale(code)"
+            >
+              <span class="lang-flag">{{ l.flag }}</span>
+              <span class="grow">{{ l.name }}</span>
+              <span v-if="locale === code" class="lang-tick">✓</span>
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <PhotoViewer v-if="viewer" :photos="viewer.photos" :start="viewer.index" @close="viewer = null" />
   </div>
 </template>
@@ -1694,40 +1756,94 @@ onBeforeUnmount(() => observer?.disconnect())
   align-items: center;
   gap: var(--s2);
 }
-.lang {
-  display: flex;
-  gap: 2px;
-  padding: 3px;
+.lang-now {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 11px;
   border-radius: var(--r-full);
   background: var(--glass);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--line);
-  max-width: 62vw;
-  overflow-x: auto;
-  scrollbar-width: none;
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  transition: transform var(--fast);
 }
-.lang::-webkit-scrollbar {
-  display: none;
+.lang-now:active {
+  transform: scale(0.96);
 }
-.lang-btn {
-  width: 28px;
-  height: 28px;
-  flex: none;
+.lang-flag {
+  font-size: 1rem;
+  line-height: 1;
+}
+.lang-caret {
+  font-size: 0.8rem;
+  opacity: 0.6;
+  transition: transform var(--fast);
+}
+.lang-caret.up {
+  transform: rotate(180deg);
+}
+/* Na uskom ekranu ostaje samo zastavica — ime jezika ionako piše u listi. */
+@media (max-width: 420px) {
+  .lang-name {
+    display: none;
+  }
+  .lang-now {
+    padding: 0 9px;
+  }
+}
+
+/* ── lista jezika ── */
+.lang-sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 92;
+  margin-inline: auto;
+  width: min(440px, 100%);
+  padding: var(--s4);
+  padding-bottom: max(var(--s4), env(safe-area-inset-bottom));
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-bottom: none;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  box-shadow: var(--shadow-lg);
+}
+.lang-sheet h4 {
+  margin: 0 0 var(--s3);
+  text-align: center;
+  font-size: var(--fs-sm);
+}
+.lang-grid {
   display: grid;
-  place-items: center;
-  border-radius: 50%;
-  font-size: 0.95rem;
-  opacity: 0.5;
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  gap: var(--s2);
+}
+.lang-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 11px var(--s3);
+  border-radius: var(--r);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  text-align: left;
   transition: all var(--fast);
 }
-.lang-btn:hover {
-  opacity: 0.85;
+.lang-row:hover {
+  border-color: var(--brand);
 }
-.lang-btn.on {
-  opacity: 1;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
+.lang-row.on {
+  border-color: var(--brand);
+  background: var(--tint-brand, var(--surface));
+}
+.lang-tick {
+  color: var(--brand);
+  font-weight: 800;
 }
 .hero-in {
   position: relative;
@@ -1820,14 +1936,39 @@ onBeforeUnmount(() => observer?.disconnect())
   color: #fff;
 }
 
-.reserve-btn {
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s2);
   margin-top: var(--s3);
+}
+.hero-actions .btn {
+  min-height: 42px;
+  padding-inline: var(--s4);
+  border-radius: var(--r-full);
+  font-weight: 650;
+}
+.hero-actions .btn-outline {
   background: var(--surface);
   border-color: var(--line-strong);
 }
-.reserve-btn:hover {
+.hero-actions .btn-outline:hover {
   border-color: var(--b);
   color: var(--b);
+}
+
+/* Zvonce je jače obojeno — gost ga traži kad mu nešto zatreba. */
+.bell {
+  background: var(--b);
+  color: #fff;
+  box-shadow: 0 6px 18px -8px var(--b);
+}
+.bell.called {
+  background: var(--tint-ok);
+  color: var(--ok);
+  box-shadow: none;
+  opacity: 1;
 }
 
 .three {
@@ -2360,21 +2501,6 @@ onBeforeUnmount(() => observer?.disconnect())
   object-fit: cover;
 }
 
-.waiter {
-  max-width: 420px;
-  margin: 0 auto var(--s6);
-}
-.waiter-btn {
-  background: var(--b);
-  color: #fff;
-  box-shadow: 0 10px 30px -12px var(--b);
-}
-.waiter-btn.called {
-  background: var(--tint-ok);
-  color: var(--ok);
-  box-shadow: none;
-  opacity: 1;
-}
 
 /* ── ocene ── */
 .rate-link {

@@ -14,7 +14,7 @@ defineProps({
   restaurantName: { type: String, default: '' },
 })
 
-const emit = defineEmits(['reply', 'hide', 'photo'])
+const emit = defineEmits(['reply', 'hide', 'remove', 'photo'])
 
 const expanded = ref(false)
 const LONG = 260
@@ -81,11 +81,18 @@ const LONG = 260
       <button class="btn btn-ghost btn-sm" @click="emit('hide', review)">
         {{ review.visible === false ? '👁️ Vrati u prikaz' : '🚫 Sakrij' }}
       </button>
+      <button class="btn btn-ghost btn-sm danger" @click="emit('remove', review)">
+        🗑 Obriši
+      </button>
     </footer>
   </article>
 </template>
 
 <style scoped>
+.acts .danger {
+  color: var(--bad);
+}
+
 .rev {
   display: flex;
   flex-direction: column;

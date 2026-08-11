@@ -7,7 +7,7 @@
 //  Preporučeno jelo se dodaje u korpu jednim dodirom, iz razgovora.
 // ─────────────────────────────────────────────────────────────
 
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { money } from '@/lib/format'
 import { aiAnswer, buildMenuContext, localAnswer } from '@/lib/assistant'
 
@@ -26,10 +26,19 @@ const busy = ref(false)
 const text = ref('')
 const stream = ref(null)
 
+// Ime koje je vlasnik zadao; ako nije, predstavlja se imenom lokala.
+const botName = computed(
+  () => (props.rest?.assistantName || '').trim() || props.rest?.name || 'Pomoćnik'
+)
+
 const msgs = ref([
   {
     from: 'bot',
-    text: `Dobar dan! Ja sam pomoćnik u lokalu ${props.rest?.name || ''}. Pitajte me šta god o meniju.`,
+    text:
+      `Pozdrav, ja sam ${botName.value}! ` +
+      'Tu sam da vam pomognem — pitajte me šta imamo, šta bih preporučio, ' +
+      'ima li nešto bez mesa ili bilo šta o lokalu. ' +
+      'Ako ne budem znao, neko od zaposlenih će vam rado izaći u susret.',
     items: [],
   },
 ])
@@ -101,8 +110,8 @@ function toggle() {
         <header class="asst-head">
           <span class="asst-ava">🍽️</span>
           <div class="grow" style="min-width: 0">
-            <strong class="truncate">Pomoćnik</strong>
-            <span class="xs faint">odgovara o jelima i cenama</span>
+            <strong class="truncate">{{ botName }}</strong>
+            <span class="xs faint">odgovara o jelima, cenama i lokalu</span>
           </div>
           <button class="btn btn-ghost btn-icon btn-sm" aria-label="Zatvori" @click="open = false">✕</button>
         </header>
@@ -141,6 +150,12 @@ function toggle() {
             {{ q }}
           </button>
         </div>
+
+        <!-- Sitna napomena: gost treba da zna sa čim ima posla, ali
+             ne toliko krupno da ga odbije od korišćenja. -->
+        <p class="asst-note">
+          Pomoćnik je u probnom radu — neće znati baš sve. Osoblje je uvek tu.
+        </p>
 
         <form class="asst-form" @submit.prevent="ask()">
           <input v-model="text" class="input" placeholder="Pitajte bilo šta o meniju…" :disabled="busy" />
@@ -364,6 +379,15 @@ function toggle() {
 .asst-quick .chip {
   flex: none;
   font-size: var(--fs-xs);
+}
+
+.asst-note {
+  margin: 0;
+  padding: 0 var(--s4) 6px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--faint);
+  text-align: center;
 }
 
 .asst-form {

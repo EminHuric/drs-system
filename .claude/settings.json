@@ -89,7 +89,14 @@
       "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/venue.cjs\")",
       "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/panel-info.cjs\")",
       "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/topics.cjs\")",
-      "Bash(git commit -q -m 'Pomocnik zna i lokal, i kaze odakle mu podatak *)"
+      "Bash(git commit -q -m 'Pomocnik zna i lokal, i kaze odakle mu podatak *)",
+      "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/kat.cjs\")",
+      "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/kat2.cjs\")",
+      "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/kat4.cjs\")",
+      "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/bot.cjs\")",
+      "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/edit.cjs\")",
+      "Bash(node rev.cjs)",
+      "Bash(git commit -q -m ' *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",

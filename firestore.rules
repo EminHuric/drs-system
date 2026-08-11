@@ -205,9 +205,11 @@ service cloud.firestore {
         allow update: if staff(rid)
           && touched().hasOnly(['reply', 'replyAt', 'visible', 'updatedAt']);
 
-        // Gost sme da povuče svoju recenziju; lokal ne može da je briše,
-        // samo da je sakrije — da ne bi „čistio" loše ocene bez traga.
+        // Gost povlači svoju; lokal briše sa svog profila. Brisanje je
+        // vlasnikovo pravo nad sadržajem na njegovoj stranici — sakrivanje
+        // ostaje kao blaža opcija kad ne želi da izgubi trag.
         allow delete: if isPlatformAdmin()
+          || ownerCanWrite(rid)
           || (signedIn() && resource.data.guestUid == request.auth.uid);
       }
 

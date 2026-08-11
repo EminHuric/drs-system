@@ -2,13 +2,13 @@
 // ─────────────────────────────────────────────────────────────
 //  Ocene i utisci gostiju
 //
-//  Vlasnik odgovara i sklanja neprimereno, ali NE može da obriše
-//  recenziju — to je namerno. Ocene koje se mogu brisati ne vrede
-//  ništa ni gostima ni lokalu.
+//  Vlasnik odgovara, sklanja neprimereno i briše. Sakrivanje je
+//  blaža radnja i ostaje prvi izbor — brisanje se traži potvrdom,
+//  jer se posle njega recenzija ne vraća.
 // ─────────────────────────────────────────────────────────────
 
 import { computed, ref } from 'vue'
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { db } from '@/firebase'
 import { restaurant, isBlocked } from '@/stores/auth'
 import { usePanelData } from '@/composables/usePanelData'
@@ -95,6 +95,19 @@ async function toggleHide(r) {
       updatedAt: serverTimestamp(),
     })
     toast.ok(r.visible === false ? 'Recenzija je vraćena u prikaz.' : 'Recenzija je sakrivena.')
+  } catch (e) {
+    toast.error(humanError(e))
+  }
+}
+
+// Brisanje je trajno, pa se traži potvrda. Sakrivanje je tu za sve
+// ostalo — vlasnik retko zaista želi da izgubi utisak gosta.
+async function removeReview(r) {
+  const ok = window.confirm('Trajno obrisati ovu recenziju? Ne može da se vrati. Ako želite samo da je sklonite sa stranice, koristite „Sakrij”.')
+  if (!ok) return
+  try {
+    await deleteDoc(doc(db, 'restaurants', restaurant.value.id, 'reviews', r.id))
+    toast.ok('Recenzija je obrisana.')
   } catch (e) {
     toast.error(humanError(e))
   }
@@ -198,6 +211,7 @@ const QUICK = [
             :can-manage="!isBlocked"
             @reply="openReply"
             @hide="toggleHide"
+            @remove="removeReview"
             @photo="viewer = $event"
           />
         </div>

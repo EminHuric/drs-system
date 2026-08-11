@@ -50,6 +50,7 @@ function load() {
     guestLocale: r.guestLocale || 'sr',
     reviewsEnabled: r.reviewsEnabled !== false,
     assistant: r.assistant !== false,
+    assistantName: r.assistantName || '',
     venueInfo: r.venueInfo || '',
     facts: (r.facts || []).map((x) => ({ q: x.q || '', a: x.a || '' })),
     whatsappSend: r.whatsappSend !== false,
@@ -98,6 +99,7 @@ async function save() {
       guestLocale: f.value.guestLocale,
       reviewsEnabled: Boolean(f.value.reviewsEnabled),
       assistant: Boolean(f.value.assistant),
+      assistantName: f.value.assistantName.trim().slice(0, 40),
       venueInfo: f.value.venueInfo.trim(),
       facts: f.value.facts.filter((x) => x.q.trim() && x.a.trim()),
       whatsappSend: Boolean(f.value.whatsappSend),
@@ -505,6 +507,12 @@ const EMOJIS = ['🍽️', '🍕', '🍔', '🍣', '🥙', '🍜', '☕', '🍺'
                 </span>
               </span>
             </label>
+
+            <div v-if="f.assistant" class="field">
+              <label class="label">Kako se pomoćnik zove</label>
+              <input v-model="f.assistantName" class="input" :disabled="locked" maxlength="40" :placeholder="f.name || 'npr. Marko'" />
+              <span class="hint">Tako se predstavlja gostu. Ostavite prazno i koristiće naziv lokala.</span>
+            </div>
 
             <div v-if="f.assistant" class="field">
               <label class="label">Šta pomoćnik zna o vašem lokalu</label>

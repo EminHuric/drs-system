@@ -27,6 +27,10 @@ export function defaultRestaurant(patch = {}) {
     // Pomoćnik gostu (odgovara o meniju, preporučuje jela).
     assistant: true,
 
+    // Ime pod kojim se pomoćnik predstavlja gostu. Vlasnik bira svoje —
+    // „Marko" zvuči toplije od „Pomoćnik".
+    assistantName: '',
+
     // Sve o lokalu što pomoćnik sme da kaže gostu: priča lokala,
     // godina osnivanja, parking, bašta, wifi. Vlasnik piše slobodno.
     venueInfo: '',

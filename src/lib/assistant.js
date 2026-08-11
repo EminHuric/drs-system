@@ -256,6 +256,25 @@ export function localAnswer(question, { rest, items, scores = {} }) {
   const words = keywords(question)
   const rated = (i) => scores[i.id]?.avg || 0
 
+  // ── „je l ukusno", „vredi li" — ocena, ne podatak ──
+  // Na ovo se ne odgovara sa „nemam u meniju"; to zvuči glupo i
+  // odbija gosta. Vraća se ono što se zna: ocene drugih gostiju.
+  if (/(ukusn|dobro je|je l dobro|vredi|kvalitet|svez|valja|dobra hrana)/.test(q)) {
+    const best = live
+      .filter((i) => scores[i.id] && scores[i.id].count)
+      .sort((x, y) => (scores[y.id].avg || 0) - (scores[x.id].avg || 0))
+    if (best.length) {
+      return {
+        text: 'Ne bih da hvalim sam sebe — evo šta su gosti ocenili najbolje, pa procenite sami:',
+        items: best.slice(0, 4),
+      }
+    }
+    return {
+      text: 'Još nemamo dovoljno ocena da bih odgovorio pošteno. Konobar će vam najbolje reći šta je danas najsvežije — a i vi možete ostaviti utisak posle.',
+      items: [],
+    }
+  }
+
   // ── radno vreme ──
   if (/(radno vreme|do kad|otvoreno|zatvarate|kad radite)/.test(q)) {
     return { text: rest?.hours ? `Radno vreme: ${rest.hours}` : 'Radno vreme nije uneto — pitajte osoblje.', items: [] }
