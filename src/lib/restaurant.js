@@ -27,6 +27,14 @@ export function defaultRestaurant(patch = {}) {
     // Pomoćnik gostu (odgovara o meniju, preporučuje jela).
     assistant: true,
 
+    // Sve o lokalu što pomoćnik sme da kaže gostu: priča lokala,
+    // godina osnivanja, parking, bašta, wifi. Vlasnik piše slobodno.
+    venueInfo: '',
+
+    // Pitanja koja gosti stalno postavljaju, sa odgovorom koji je uvek
+    // isti. Pomoćnik prvo gleda ovde — to je jedini izvor kojem veruje.
+    facts: [],
+
     // Porudžbina uvek ide u sistem. WhatsApp je dodatni kanal koji
     // lokal može da isključi ako mu smeta što gost mora da pritisne
     // „Pošalji" u još jednoj aplikaciji.

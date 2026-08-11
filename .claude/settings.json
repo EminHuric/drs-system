@@ -85,7 +85,11 @@
       "Bash(cp \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/test-asistent.mjs\" proveri-pomocnika.mjs)",
       "Bash(sed -i \"s|file:///C:/Users/Emin/Desktop/Programs/restaurant-orders/src/lib/|./src/lib/|g\" proveri-pomocnika.mjs)",
       "Bash(node proveri-pomocnika.mjs)",
-      "Bash(git commit -q -m 'Pomocnik: razumevanje umesto pogadjanja *)"
+      "Bash(git commit -q -m 'Pomocnik: razumevanje umesto pogadjanja *)",
+      "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/venue.cjs\")",
+      "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/panel-info.cjs\")",
+      "Bash(node \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/topics.cjs\")",
+      "Bash(git commit -q -m 'Pomocnik zna i lokal, i kaze odakle mu podatak *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",

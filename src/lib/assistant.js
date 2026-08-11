@@ -45,11 +45,20 @@ export function buildMenuContext(rest, categories, items, scores = {}) {
       return '• ' + bits.join(' · ')
     })
 
+  const facts = (rest?.facts || [])
+    .filter((x) => x && x.q && x.a)
+    .map((x) => `• ${x.q} — ${x.a}`)
+
   return [
     `Restoran: ${rest?.name || ''}`,
     rest?.tagline ? `Opis: ${rest.tagline}` : '',
-    rest?.about ? `O lokalu: ${rest.about}` : '',
+    rest?.address || rest?.city
+      ? `Adresa: ${[rest.address, rest.city].filter(Boolean).join(', ')}`
+      : '',
     rest?.hours ? `Radno vreme: ${rest.hours}` : '',
+    rest?.about ? `\nO lokalu: ${rest.about}` : '',
+    rest?.venueInfo ? `\nDODATNO O LOKALU:\n${rest.venueInfo}` : '',
+    facts.length ? `\nČESTA PITANJA:\n${facts.join('\n')}` : '',
     '',
     'MENI:',
     ...lines,
@@ -133,6 +142,110 @@ function byTaste(items, taste) {
   return items.filter((i) => keys.some((k) => HAY(i).includes(k)))
 }
 
+
+// Teme o lokalu: levo ono što gost pita, desno ono što vlasnik piše.
+// Bez ovoga „pas" nikad ne pogodi „kućne ljubimce".
+const TOPICS = {
+  ljubimci: {
+    ask: ['pas', 'psa', 'psi', 'psom', 'pseto', 'kuce', 'ljubim', 'macka', 'mace', 'zivotinj'],
+    find: ['pas', 'psi', 'psa', 'ljubim', 'kucn', 'zivotinj'],
+  },
+  parking: {
+    ask: ['parking', 'parkir', 'auto', 'kola', 'garaz'],
+    find: ['parking', 'parkir', 'garaz'],
+  },
+  wifi: {
+    ask: ['wifi', 'wi fi', 'internet', 'mreza', 'sifra'],
+    find: ['wifi', 'wi fi', 'internet', 'mreza'],
+  },
+  pusenje: {
+    ask: ['pusi', 'pusen', 'cigar', 'duvan'],
+    find: ['pusi', 'pusen', 'duvan', 'nepusac'],
+  },
+  basta: {
+    ask: ['basta', 'terasa', 'napolju', 'spolja', 'pogled', 'more', 'vani'],
+    find: ['basta', 'terasa', 'pogled', 'more', 'napolju'],
+  },
+  osnovan: {
+    ask: ['osnovan', 'osnovali', 'otvoren', 'otvorili', 'postoji', 'poceli', 'tradicij', 'istorij', 'koliko dugo', 'godin'],
+    find: ['osnovan', 'otvoren', 'godine', 'tradicij', 'generacij', 'postoj', 'radimo od'],
+  },
+  deca: {
+    ask: ['deca', 'dete', 'decij', 'igraon', 'stolic', 'beb'],
+    find: ['dec', 'igraon', 'stolic', 'beb'],
+  },
+  kapacitet: {
+    ask: ['mesta', 'kapacitet', 'koliko stolova', 'grupa', 'proslav', 'rodjendan'],
+    find: ['mesta', 'kapacitet', 'grupa', 'proslav', 'rodjendan'],
+  },
+  placanje: {
+    ask: ['kartic', 'gotovin', 'placanj', 'racun', 'faktur'],
+    find: ['kartic', 'gotovin', 'placanj', 'racun'],
+  },
+}
+
+/** Koja tema se pita, ako ijedna. */
+function topicOf(q) {
+  const n = norm(q)
+  for (const [name, t] of Object.entries(TOPICS)) {
+    if (t.ask.some((w) => n.includes(w))) return t
+  }
+  return null
+}
+
+/**
+ * Odgovor iz podataka koje je vlasnik uneo o svom lokalu.
+ * Vraća null kad nema pokrića — tada se ništa ne izmišlja.
+ */
+function venueAnswer(question, rest) {
+  const words = keywords(question)
+  const q = norm(question)
+  const topic = topicOf(question)
+  const facts = rest && rest.facts ? rest.facts : []
+
+  // 1) pitanja koja je vlasnik sam zadao — gleda se i pitanje i odgovor
+  for (const fx of facts) {
+    if (!fx || !fx.q || !fx.a) continue
+    const hay = norm(fx.q + ' ' + fx.a)
+    if (topic && topic.find.some((w) => hay.includes(w))) return fx.a
+    if (words.length && words.some((w) => hay.includes(w))) return fx.a
+  }
+
+  // 2) rečenica iz slobodnog opisa
+  const text = [rest && rest.venueInfo, rest && rest.about].filter(Boolean).join(' ')
+  if (text) {
+    const sentences = text.split(/(?<=[.!?])\s+/)
+
+    // po temi je dovoljna jedna pogođena reč — tema je već sužila pitanje
+    if (topic) {
+      const hit = sentences.find((sn) => topic.find.some((w) => norm(sn).includes(w)))
+      if (hit) return hit.trim()
+    }
+
+    if (words.length) {
+      const need = Math.min(2, words.length)
+      const hit = sentences.find((sn) => {
+        const h = norm(sn)
+        return words.filter((w) => h.includes(w)).length >= need
+      })
+      if (hit) return hit.trim()
+    }
+  }
+
+  // 3) adresa
+  if (/(gde se nalaz|gde ste|adres|lokacij|kako do vas)/.test(q)) {
+    const a = [rest && rest.address, rest && rest.city].filter(Boolean).join(', ')
+    return a ? `Nalazimo se na adresi ${a}.` : null
+  }
+
+  // 4) tema se prepoznaje, ali lokal o njoj nije ništa napisao
+  if (topic) {
+    return 'To mi lokal nije upisao, pa ne bih da nagađam — konobar će vam tačno reći.'
+  }
+
+  return null
+}
+
 /**
  * @returns {{text: string, items: object[]}} odgovor i jela za prikaz
  */
@@ -148,11 +261,21 @@ export function localAnswer(question, { rest, items, scores = {} }) {
     return { text: rest?.hours ? `Radno vreme: ${rest.hours}` : 'Radno vreme nije uneto — pitajte osoblje.', items: [] }
   }
 
+  // ── pitanja o samom lokalu (osnivanje, parking, bašta…) ──
+  const venue = venueAnswer(question, rest)
+  if (venue) return { text: venue, items: [] }
+
+
   // ── ukus: kiselo, slatko, ljuto… ──
   for (const taste of Object.keys(TASTES)) {
     if (q.includes(taste) || (taste === 'jako' && /jac|zasitn|obrok/.test(q))) {
       const found = byTaste(live, taste)
-      if (found.length) return { text: `Evo šta bih izdvojio kao ${taste}:`, items: found.slice(0, 6) }
+      if (found.length) {
+        return {
+          text: `Po sastojcima iz menija, ovo bi trebalo da bude ${taste}. Ako vam je ukus baš važan, neka konobar potvrdi.`,
+          items: found.slice(0, 6),
+        }
+      }
       return {
         text: `Nemam ništa označeno kao ${taste} u meniju. Pitajte konobara, možda ima nešto što nije upisano.`,
         items: [],
@@ -195,7 +318,12 @@ export function localAnswer(question, { rest, items, scores = {} }) {
   // ── brzo ──
   if (/(brzo|najbrz|zurim|na brzin|nemam vremena)/.test(q)) {
     const fast = live.filter((i) => i.prepTime).sort((a, b) => a.prepTime - b.prepTime)
-    return { text: fast.length ? 'Ovo se sprema najbrže:' : 'Vreme pripreme nije uneto — pitajte konobara.', items: fast.slice(0, 5) }
+    return {
+      text: fast.length
+        ? `Prema vremenu pripreme koje je lokal uneo, ovo ide najbrže — oko ${fast[0].prepTime} minuta. Ako vam je važno da bude baš brzo, potvrdite sa konobarom.`
+        : 'Lokal nije uneo vremena pripreme, pa vam to ne mogu reći pouzdano. Konobar će znati šta danas ide najbrže.',
+      items: fast.slice(0, 5),
+    }
   }
 
   // ── konkretno jelo ili sastojak (pršut, hobotnica, sir…) ──
@@ -213,7 +341,15 @@ export function localAnswer(question, { rest, items, scores = {} }) {
       .filter((i) => scores[i.id]?.count || i.badges?.includes('bestseller') || i.featured)
       .sort((a, b) => rated(b) - rated(a))
     const pick = (top.length ? top : live).slice(0, 4)
-    return { text: pick.length ? 'Evo šta gosti najviše hvale:' : 'Meni se još popunjava.', items: pick }
+    const rateds = pick.filter((i) => scores[i.id] && scores[i.id].count).length
+    return {
+      text: pick.length
+        ? rateds
+          ? 'Ovo su jela koja gosti najbolje ocenjuju kod nas:'
+          : 'Ovo je kuća izdvojila kao svoje. Konobar će vam reći šta je danas najsvežije.'
+        : 'Meni se još popunjava.',
+      items: pick,
+    }
   }
 
   // ── iskreno „ne znam" umesto pogrešnog pogotka ──

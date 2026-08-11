@@ -50,6 +50,8 @@ function load() {
     guestLocale: r.guestLocale || 'sr',
     reviewsEnabled: r.reviewsEnabled !== false,
     assistant: r.assistant !== false,
+    venueInfo: r.venueInfo || '',
+    facts: (r.facts || []).map((x) => ({ q: x.q || '', a: x.a || '' })),
     whatsappSend: r.whatsappSend !== false,
     reservations: r.reservations === true,
     takeaway: r.takeaway === true,
@@ -96,6 +98,8 @@ async function save() {
       guestLocale: f.value.guestLocale,
       reviewsEnabled: Boolean(f.value.reviewsEnabled),
       assistant: Boolean(f.value.assistant),
+      venueInfo: f.value.venueInfo.trim(),
+      facts: f.value.facts.filter((x) => x.q.trim() && x.a.trim()),
       whatsappSend: Boolean(f.value.whatsappSend),
       reservations: Boolean(f.value.reservations),
       takeaway: Boolean(f.value.takeaway),
@@ -501,6 +505,48 @@ const EMOJIS = ['🍽️', '🍕', '🍔', '🍣', '🥙', '🍜', '☕', '🍺'
                 </span>
               </span>
             </label>
+
+            <div v-if="f.assistant" class="field">
+              <label class="label">Šta pomoćnik zna o vašem lokalu</label>
+              <textarea
+                v-model="f.venueInfo"
+                class="textarea"
+                style="min-height: 110px"
+                :disabled="locked"
+                maxlength="2000"
+                placeholder="Otvoreni smo 1998. godine, porodični smo lokal u trećoj generaciji. Imamo baštu sa 40 mesta i pogledom na more. Parking je besplatan iza objekta. Ribu nabavljamo svako jutro sa pijace. Primamo kućne ljubimce."
+              ></textarea>
+              <span class="hint">
+                Pišite slobodno, u rečenicama. Sve odavde pomoćnik sme da kaže gostu — godina
+                osnivanja, bašta, parking, priča lokala, specijaliteti. Što više napišete, to
+                manje gost pita konobara.
+              </span>
+            </div>
+
+            <div v-if="f.assistant" class="field">
+              <div class="row-between">
+                <label class="label">Česta pitanja gostiju</label>
+                <button class="linkish xs" :disabled="locked" @click="f.facts.push({ q: '', a: '' })">
+                  + Dodaj pitanje
+                </button>
+              </div>
+
+              <div v-if="f.facts.length" class="facts">
+                <div v-for="(fx, i) in f.facts" :key="i" class="fact">
+                  <input v-model="fx.q" class="input" :disabled="locked" placeholder="Imate li parking?" />
+                  <input v-model="fx.a" class="input" :disabled="locked" placeholder="Da, besplatan je iza objekta." />
+                  <button class="btn btn-ghost btn-icon btn-sm" :disabled="locked" aria-label="Ukloni" @click="f.facts.splice(i, 1)">
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              <span class="hint">
+                Pitanje i odgovor. Pomoćnik prvo gleda ovde i odgovara doslovno — zato je ovo
+                najsigurniji način da nikad ne pogreši. Npr. „Da li se puši?", „Imate li wifi?",
+                „Kada je osnovan lokal?"
+              </span>
+            </div>
 
             <label class="switch">
               <input v-model="f.reviewsEnabled" type="checkbox" :disabled="locked" />
@@ -1162,5 +1208,25 @@ const EMOJIS = ['🍽️', '🍕', '🍔', '🍣', '🥙', '🍜', '☕', '🍺'
   background: var(--surface-3);
   border: 1px solid var(--line-strong);
   box-shadow: var(--shadow-lg);
+}
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--s2);
+}
+.fact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+@media (max-width: 620px) {
+  .fact {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .fact > :nth-child(2) {
+    grid-column: 1 / -1;
+  }
 }
 </style>
