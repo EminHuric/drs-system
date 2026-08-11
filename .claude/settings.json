@@ -65,7 +65,8 @@
       "Bash(git add *)",
       "Bash(git commit -q -m 'Vercel: vite i plugin-vue u dependencies \\(production install ih je preskakao\\) *)",
       "Bash(mv .env .env.backup)",
-      "Bash(git commit -q -m 'Rezervna Firebase konfiguracija u kodu *)"
+      "Bash(git commit -q -m 'Rezervna Firebase konfiguracija u kodu *)",
+      "Bash(git push *)"
     ]
   }
 }
