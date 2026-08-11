@@ -348,6 +348,19 @@ function addFromDetail() {
   detail.value = null
 }
 
+/**
+ * Na slici stoji SAMO jedan bedž — onaj koji najviše znači gostu.
+ * Gomila oznaka preko fotografije pretrpa mrežu i ništa se ne pročita.
+ */
+function topBadge(it) {
+  if (itemScores.value[it.id]?.count) {
+    return { icon: '★', label: fmtRating(itemScores.value[it.id].avg), tone: 'gold' }
+  }
+  const order = ['bestseller', 'chef', 'discount', 'new', 'spicy', 'vegan']
+  const key = order.find((k) => it.badges?.includes(k))
+  return key ? { icon: BADGES[key].icon, label: BADGES[key].label, tone: BADGES[key].tone } : null
+}
+
 function quickAdd(item) {
   cart.value.add(item, 1, '')
 }
@@ -913,50 +926,36 @@ onBeforeUnmount(() => observer?.disconnect())
         <section v-else-if="results" class="sec">
           <h2 class="sec-title">{{ t('searchResults') }}</h2>
           <div v-if="results.length" class="grid">
-              <button v-for="it in results" :key="it.id" class="card-item" @click="openDetail(it)">
-                <span class="ci-text">
-                  <strong class="ci-name">{{ it.name }}</strong>
-                  <span v-if="it.desc" class="ci-desc">{{ it.desc }}</span>
+              <button v-for="it in results" :key="it.id" class="dish" @click="openDetail(it)">
+                <span class="dish-photo">
+                  <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
+                  <span v-else class="dish-fallback">{{ it.emoji || '🍽️' }}</span>
 
-                  <span
-                    v-if="it.badges?.length || itemScores[it.id]?.count || it.portion"
-                    class="ci-badges"
-                  >
-                    <span v-if="itemScores[it.id]?.count" class="badge xs badge-gold">
-                      ★ {{ fmtRating(itemScores[it.id].avg) }}
-                    </span>
-                    <span
-                      v-for="b in it.badges"
-                      :key="b"
-                      class="badge xs"
-                      :class="'badge-' + (BADGES[b]?.tone || '')"
-                    >
-                      {{ BADGES[b]?.icon }} {{ BADGES[b]?.label }}
-                    </span>
-                    <span v-if="it.portion" class="badge xs badge-muted">{{ it.portion }}</span>
+                  <span v-if="topBadge(it)" class="dish-flag" :class="'flag-' + topBadge(it).tone">
+                    {{ topBadge(it).icon }} {{ topBadge(it).label }}
                   </span>
 
-                  <span class="ci-price">
-                    {{ money(it.price, cur) }}
-                    <s v-if="it.oldPrice > it.price">{{ money(it.oldPrice, cur) }}</s>
-                  </span>
-                </span>
+                  <span v-if="cart.qtyOf(it.id)" class="dish-qty">{{ cart.qtyOf(it.id) }}</span>
 
-                <span class="ci-media">
-                  <span class="thumb">
-                    <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
-                    <span v-else class="ci-emoji">{{ it.emoji }}</span>
-                  </span>
                   <span
                     v-if="!closed"
-                    class="add"
+                    class="dish-add"
                     role="button"
                     tabindex="0"
                     :aria-label="'Dodaj ' + it.name"
                     @click.stop="quickAdd(it)"
                     @keydown.enter.stop="quickAdd(it)"
                   >+</span>
-                  <span v-if="cart.qtyOf(it.id)" class="qty-pill">{{ cart.qtyOf(it.id) }}</span>
+                </span>
+
+                <span class="dish-body">
+                  <strong class="dish-name">{{ it.name }}</strong>
+                  <span v-if="it.desc" class="dish-desc">{{ it.desc }}</span>
+                  <span class="dish-foot">
+                    <span class="dish-price">{{ money(it.price, cur) }}</span>
+                    <s v-if="it.oldPrice > it.price" class="dish-old">{{ money(it.oldPrice, cur) }}</s>
+                    <span v-if="it.portion" class="dish-portion">{{ it.portion }}</span>
+                  </span>
                 </span>
               </button>
           </div>
@@ -992,50 +991,36 @@ onBeforeUnmount(() => observer?.disconnect())
           <section v-for="c in sections" :id="'c-' + c.id" :key="c.id" :data-cat="c.id" class="sec">
             <h2 class="sec-title">{{ c.emoji }} {{ c.name }}</h2>
             <div class="grid">
-              <button v-for="it in c.items" :key="it.id" class="card-item" @click="openDetail(it)">
-                <span class="ci-text">
-                  <strong class="ci-name">{{ it.name }}</strong>
-                  <span v-if="it.desc" class="ci-desc">{{ it.desc }}</span>
+              <button v-for="it in c.items" :key="it.id" class="dish" @click="openDetail(it)">
+                <span class="dish-photo">
+                  <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
+                  <span v-else class="dish-fallback">{{ it.emoji || '🍽️' }}</span>
 
-                  <span
-                    v-if="it.badges?.length || itemScores[it.id]?.count || it.portion"
-                    class="ci-badges"
-                  >
-                    <span v-if="itemScores[it.id]?.count" class="badge xs badge-gold">
-                      ★ {{ fmtRating(itemScores[it.id].avg) }}
-                    </span>
-                    <span
-                      v-for="b in it.badges"
-                      :key="b"
-                      class="badge xs"
-                      :class="'badge-' + (BADGES[b]?.tone || '')"
-                    >
-                      {{ BADGES[b]?.icon }} {{ BADGES[b]?.label }}
-                    </span>
-                    <span v-if="it.portion" class="badge xs badge-muted">{{ it.portion }}</span>
+                  <span v-if="topBadge(it)" class="dish-flag" :class="'flag-' + topBadge(it).tone">
+                    {{ topBadge(it).icon }} {{ topBadge(it).label }}
                   </span>
 
-                  <span class="ci-price">
-                    {{ money(it.price, cur) }}
-                    <s v-if="it.oldPrice > it.price">{{ money(it.oldPrice, cur) }}</s>
-                  </span>
-                </span>
+                  <span v-if="cart.qtyOf(it.id)" class="dish-qty">{{ cart.qtyOf(it.id) }}</span>
 
-                <span class="ci-media">
-                  <span class="thumb">
-                    <img v-if="it.image" :src="it.image" :alt="it.name" loading="lazy" />
-                    <span v-else class="ci-emoji">{{ it.emoji }}</span>
-                  </span>
                   <span
                     v-if="!closed"
-                    class="add"
+                    class="dish-add"
                     role="button"
                     tabindex="0"
                     :aria-label="'Dodaj ' + it.name"
                     @click.stop="quickAdd(it)"
                     @keydown.enter.stop="quickAdd(it)"
                   >+</span>
-                  <span v-if="cart.qtyOf(it.id)" class="qty-pill">{{ cart.qtyOf(it.id) }}</span>
+                </span>
+
+                <span class="dish-body">
+                  <strong class="dish-name">{{ it.name }}</strong>
+                  <span v-if="it.desc" class="dish-desc">{{ it.desc }}</span>
+                  <span class="dish-foot">
+                    <span class="dish-price">{{ money(it.price, cur) }}</span>
+                    <s v-if="it.oldPrice > it.price" class="dish-old">{{ money(it.oldPrice, cur) }}</s>
+                    <span v-if="it.portion" class="dish-portion">{{ it.portion }}</span>
+                  </span>
                 </span>
               </button>
             </div>
@@ -1994,166 +1979,186 @@ onBeforeUnmount(() => observer?.disconnect())
   letter-spacing: -0.02em;
 }
 
+/* ── mreža jela ──────────────────────────────────────
+   Dve kolone na telefonu, krupna fotografija na vrhu. Hranu
+   prodaje slika — zato ona, a ne tekst, nosi karticu. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s3);
 }
-@media (max-width: 700px) {
+@media (min-width: 720px) {
   .grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
   }
 }
 
-.card-item {
+.dish {
   display: flex;
-  align-items: stretch;
-  gap: var(--s3);
-  padding: var(--s3);
+  flex-direction: column;
   border-radius: var(--r-md);
-  border: 1px solid var(--line);
   background: var(--surface);
+  overflow: hidden;
   text-align: left;
-  width: 100%;
-  transition: border-color var(--fast), box-shadow var(--fast), transform var(--fast);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--fast), box-shadow var(--fast);
 }
-.card-item:hover {
-  border-color: var(--b);
+.dish:hover {
   box-shadow: var(--shadow);
+  transform: translateY(-3px);
 }
-.card-item:active {
-  transform: scale(0.99);
+.dish:active {
+  transform: scale(0.985);
 }
-.card-item:hover .thumb img {
+.dish:hover .dish-photo img {
   transform: scale(1.06);
 }
 
-/* Tekst prvi i pun širinom — naziv jela ne sme da se lomi na dva slova
-   po redu zato što slika jede pola ekrana. */
-.ci-text {
-  flex: 1;
-  min-width: 0;
+.dish-photo {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--surface-3);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.dish-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s var(--ease);
+}
+/* Bez fotografije: topla podloga u boji lokala umesto sive rupe. */
+.dish-fallback {
+  font-size: 2.8rem;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.18));
+}
+.dish-photo:has(.dish-fallback) {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--b) 24%, var(--surface)), var(--surface-3));
+}
+
+.dish-flag {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-radius: var(--r-full);
+  font-size: 11px;
+  font-weight: 750;
+  background: rgba(12, 12, 14, 0.72);
+  color: #fff;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  max-width: calc(100% - 16px);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.flag-gold {
+  color: #ffd464;
+}
+.flag-hot {
+  color: #ff9a72;
+}
+.flag-green {
+  color: #8fe0aa;
+}
+
+.dish-qty {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* Dugme sedi preko donje ivice slike — palac ga dohvati bez gledanja. */
+.dish-add {
+  position: absolute;
+  right: 8px;
+  bottom: -18px;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--b);
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+  padding-bottom: 3px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px -6px var(--b), 0 0 0 4px var(--surface);
+  transition: transform var(--fast);
+  z-index: 1;
+}
+.dish-add:hover,
+.dish-add:active {
+  transform: scale(1.12);
+}
+
+.dish-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  justify-content: center;
+  gap: 3px;
+  padding: var(--s3) var(--s3) var(--s4);
+  padding-right: 52px;
 }
-.ci-name {
+.dish-name {
   font-size: var(--fs-base);
   font-weight: 650;
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-}
-.ci-desc {
-  font-size: var(--fs-sm);
-  color: var(--muted);
-  line-height: 1.45;
+  line-height: 1.28;
+  letter-spacing: -0.012em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.ci-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
-}
-.ci-price {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-top: 4px;
-  font-size: var(--fs-md);
-  font-weight: 750;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-}
-.ci-price s {
+.dish-desc {
   font-size: var(--fs-xs);
-  font-weight: 500;
-  color: var(--faint);
-}
-
-/* Slika desno, kvadratna, sa dugmetom „+" na uglu — palac ga dohvata
-   bez pomeranja ruke. */
-.ci-media {
-  position: relative;
-  flex: none;
-  width: 96px;
-  align-self: center;
-}
-.thumb {
-  width: 96px;
-  height: 96px;
-  border-radius: var(--r);
-  background: var(--surface-3);
-  display: grid;
-  place-items: center;
+  color: var(--muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform var(--slow);
+.dish-foot {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
 }
-.ci-emoji {
-  font-size: 2.2rem;
-  opacity: 0.9;
+.dish-price {
+  font-size: var(--fs-md);
+  font-weight: 780;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
 }
-.add {
-  position: absolute;
-  right: -6px;
-  bottom: -6px;
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--b);
-  color: #fff;
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-  box-shadow: 0 4px 14px -4px var(--b), 0 0 0 3px var(--surface);
-  transition: transform var(--fast);
+.dish-old {
+  font-size: var(--fs-xs);
+  color: var(--faint);
 }
-.add:hover,
-.add:active {
-  transform: scale(1.12);
-}
-.qty-pill {
-  position: absolute;
-  top: -6px;
-  left: -6px;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
+.dish-portion {
+  font-size: 10px;
+  color: var(--faint);
+  padding: 2px 6px;
   border-radius: var(--r-full);
-  background: var(--ink);
-  color: var(--bg);
-  font-size: 11px;
-  font-weight: 750;
-  display: grid;
-  place-items: center;
-  box-shadow: 0 0 0 3px var(--surface);
-}
-
-@media (max-width: 400px) {
-  .ci-media,
-  .thumb {
-    width: 84px;
-  }
-  .thumb {
-    height: 84px;
-  }
-  .ci-emoji {
-    font-size: 1.9rem;
-  }
+  background: var(--surface-2);
 }
 
 /* ── izdvojeno ── */
