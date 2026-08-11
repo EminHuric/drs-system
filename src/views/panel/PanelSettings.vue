@@ -49,6 +49,7 @@ function load() {
     guestTheme: r.guestTheme || 'auto',
     guestLocale: r.guestLocale || 'sr',
     reviewsEnabled: r.reviewsEnabled !== false,
+    assistant: r.assistant !== false,
     whatsappSend: r.whatsappSend !== false,
     reservations: r.reservations === true,
     takeaway: r.takeaway === true,
@@ -94,6 +95,7 @@ async function save() {
       guestTheme: f.value.guestTheme,
       guestLocale: f.value.guestLocale,
       reviewsEnabled: Boolean(f.value.reviewsEnabled),
+      assistant: Boolean(f.value.assistant),
       whatsappSend: Boolean(f.value.whatsappSend),
       reservations: Boolean(f.value.reservations),
       takeaway: Boolean(f.value.takeaway),
@@ -486,6 +488,19 @@ const EMOJIS = ['🍽️', '🍕', '🍔', '🍣', '🥙', '🍜', '☕', '🍺'
                 svetloj i na tamnoj temi. Trenutno: <strong class="mono">{{ f.brandColor }}</strong>
               </span>
             </div>
+
+            <label class="switch">
+              <input v-model="f.assistant" type="checkbox" :disabled="locked" />
+              <span class="track"></span>
+              <span>
+                <strong class="small">Pomoćnik gostu</strong>
+                <span class="xs faint" style="display: block">
+                  Dugme „Pitaj nas" u meniju. Odgovara na pitanja o jelima, cenama, sastojcima i
+                  alergenima i preporučuje šta da naruče. Zna samo vaš meni — ništa o vama,
+                  prometu ni gostima.
+                </span>
+              </span>
+            </label>
 
             <label class="switch">
               <input v-model="f.reviewsEnabled" type="checkbox" :disabled="locked" />

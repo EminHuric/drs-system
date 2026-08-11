@@ -75,7 +75,8 @@
       "Bash(xargs echo \"  tela kartice:\")",
       "Bash(xargs echo \"  dugmadi +:\")",
       "Bash(git commit -q -m 'Meni: dugme + van fotografije, sto se bira u istom ekranu *)",
-      "Bash(git commit -q -m 'Gost: sema stolova u ekranu za slanje, bez telefona u lokalu, cetiri nacina placanja *)"
+      "Bash(git commit -q -m 'Gost: sema stolova u ekranu za slanje, bez telefona u lokalu, cetiri nacina placanja *)",
+      "Bash(git commit -q -m 'Pomocnik gostu: odgovara o meniju i preporucuje jela *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",

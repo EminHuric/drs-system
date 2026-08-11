@@ -37,6 +37,7 @@ import StarRating from '@/components/StarRating.vue'
 import ReviewCard from '@/components/ReviewCard.vue'
 import ReviewForm from '@/components/ReviewForm.vue'
 import PhotoViewer from '@/components/PhotoViewer.vue'
+import GuestAssistant from '@/components/GuestAssistant.vue'
 import { byItem, fmtRating, summarize } from '@/lib/reviews'
 import { toast, humanError } from '@/stores/toast'
 import { money, normalizePhone, toDate } from '@/lib/format'
@@ -1605,6 +1606,19 @@ onBeforeUnmount(() => observer?.disconnect())
       :restaurant-name="rest.name"
       @close="reviewOpen = false"
       @done="reviewOpen = false"
+    />
+
+    <!-- Pomoćnik: odgovara o meniju i preporučuje, bez pristupa
+         ijednom podatku o vlasniku ili poslovanju. -->
+    <GuestAssistant
+      v-if="rest.assistant !== false && sections.length"
+      :rest="rest"
+      :items="available"
+      :categories="categories"
+      :scores="itemScores"
+      :closed="closed"
+      @add="quickAdd"
+      @open="openDetail"
     />
 
     <PhotoViewer v-if="viewer" :photos="viewer.photos" :start="viewer.index" @close="viewer = null" />

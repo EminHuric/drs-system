@@ -24,6 +24,9 @@ export function defaultRestaurant(patch = {}) {
     // prekidačem i lokal radi dalje kao da ih nema.
     reviewsEnabled: true,
 
+    // Pomoćnik gostu (odgovara o meniju, preporučuje jela).
+    assistant: true,
+
     // Porudžbina uvek ide u sistem. WhatsApp je dodatni kanal koji
     // lokal može da isključi ako mu smeta što gost mora da pritisne
     // „Pošalji" u još jednoj aplikaciji.
