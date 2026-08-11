@@ -43,7 +43,7 @@ import { byItem, fmtRating, summarize } from '@/lib/reviews'
 import { toast, humanError } from '@/stores/toast'
 import { money, normalizePhone, toDate } from '@/lib/format'
 import { orderCode } from '@/lib/codes'
-import { BADGES, LIVE_STATUSES, ORDER_STATUS } from '@/lib/constants'
+import { BADGES, LIVE_STATUSES, ORDER_STATUS, PAYMENT_CHOICES } from '@/lib/constants'
 import { supportsDelivery, supportsDinein, supportsTakeaway } from '@/lib/restaurant'
 import { GUEST_THEMES, themeStyle } from '@/lib/themes'
 import { LOCALES, applyRestaurantLocale, currentLocale, locale, setLocale, t } from '@/lib/i18n'
@@ -507,25 +507,23 @@ function useMyLocation() {
   )
 }
 
+// Gotovina ili kartica — ništa više. Vlasnik u podešavanjima gasi
+// ono što ne prima, pa gost ne bira nešto što na kasi ne postoji.
+// Ako lokal nije podesio ništa, ostaje gotovina: nju svako prima.
 const payOptions = computed(() => {
-  if (orderType.value === 'delivery') {
-    return [
-      { id: 'cash', icon: '💵', label: 'Gotovina kuriru' },
-      { id: 'card', icon: '💳', label: 'Kartica kuriru' },
-    ]
-  }
-  if (orderType.value === 'takeaway') {
-    return [
-      { id: 'counter', icon: '🧾', label: 'Na kasi' },
-      { id: 'card', icon: '💳', label: 'Karticom' },
-    ]
-  }
-  return [
-    { id: 'waiter', icon: '🙋', label: 'Konobaru' },
-    { id: 'counter', icon: '🧾', label: 'Na kasi' },
-    { id: 'card', icon: '💳', label: 'Karticom' },
-  ]
+  const on = rest.value?.payments
+  const list = PAYMENT_CHOICES.filter((p) => !Array.isArray(on) || on.includes(p.id))
+  return list.length ? list : [PAYMENT_CHOICES[0]]
 })
+
+// Da li će se WhatsApp otvoriti — isto pravilo kao pri slanju, samo
+// da bi gost unapred znao šta ga čeka posle dugmeta.
+const waWillOpen = computed(
+  () =>
+    ['takeaway', 'delivery'].includes(orderType.value) &&
+    rest.value?.whatsappSend === true &&
+    Boolean(rest.value?.whatsappNumber)
+)
 
 // Ako se promeni način poručivanja, izabrano plaćanje možda više ne postoji.
 watch(payOptions, (list) => {
@@ -605,11 +603,16 @@ async function submit() {
     cart.value.clear()
     checkout.value = false
 
-    // Porudžbina je već u sistemu i osoblje je vidi. WhatsApp je samo
-    // dodatni kanal — ako ga lokal ne koristi, gost ni ne primeti da
-    // postoji. Otvara se posle preusmeravanja da se ekran praćenja
-    // sačeka gosta kad se vrati iz WhatsApp-a.
-    const sendWa = rest.value.whatsappSend !== false && rest.value.whatsappNumber
+    // Porudžbina je već u sistemu i osoblje je vidi u panelu. WhatsApp
+    // ide SAMO za poneti i dostavu, i samo ako ga je vlasnik uključio:
+    // tu je gost van lokala i lokal hoće zvono i na telefonu. Za sto u
+    // lokalu se ne šalje ništa — osoblje je tu i gleda ekran, a poruka
+    // na tuđi telefon je samo još jedno mesto sa kog se gubi.
+    const waModes = ['takeaway', 'delivery']
+    const sendWa =
+      waModes.includes(orderType.value) &&
+      rest.value.whatsappSend === true &&
+      Boolean(rest.value.whatsappNumber)
 
     router.push({
       name: 'guest-order',
@@ -798,9 +801,7 @@ async function submitReservation() {
       params: { slug: route.params.slug, orderId: ref_.id },
     })
 
-    if (rest.value.whatsappSend !== false && rest.value.whatsappNumber) {
-      openWhatsApp(rest.value.whatsappNumber, buildOrderMessage(payload, rest.value))
-    }
+    // Rezervacija je uvek za sto u lokalu — ne ide na WhatsApp.
   } catch (e) {
     resError.value = guestError(e)
   } finally {
@@ -809,6 +810,16 @@ async function submitReservation() {
 }
 
 // ── dozivanje konobara ───────────────────────────────────────
+
+// `!== false` namerno: lokali napravljeni pre ovog polja nemaju ga
+// u dokumentu, a zvonce im je po pravilu uključeno. Sa `&&` bi im
+// dugme nestalo bez ijedne izmene sa njihove strane.
+const canCallWaiter = computed(
+  () =>
+    orderType.value === 'dinein' &&
+    rest.value?.dinein?.callWaiter !== false &&
+    !closed.value
+)
 
 const callingWaiter = ref(false)
 const waiterCalled = ref(false)
@@ -950,7 +961,7 @@ onMounted(loadRestaurant)
           <!-- Zvonce stoji uz vrh, gde ga gost traži kad mu nešto zatreba —
                a ne na dnu menija posle svih jela. -->
           <button
-            v-if="orderType === 'dinein' && rest.dinein?.callWaiter && !closed"
+            v-if="canCallWaiter"
             class="btn bell"
             :class="[callingWaiter && 'btn-spin', waiterCalled && 'called']"
             :disabled="callingWaiter || waiterCalled"
@@ -971,6 +982,18 @@ onMounted(loadRestaurant)
         </span>
         <strong class="truncate bar-name">{{ rest.name }}</strong>
         <input v-model="search" class="input search" :placeholder="t('search')" />
+
+        <!-- Zvonce ostaje nadohvat ruke i kad zaglavlje odskroluje. -->
+        <button
+          v-if="canCallWaiter"
+          class="bar-bell"
+          :class="[callingWaiter && 'btn-spin', waiterCalled && 'called']"
+          :disabled="callingWaiter || waiterCalled"
+          :aria-label="waiterCalled ? t('waiterCalled') : t('callWaiter')"
+          @click="callWaiter"
+        >
+          {{ waiterCalled ? '✅' : '🔔' }}
+        </button>
 
         <!-- Korpa je uvek na istom mestu, i kad je prazna — gost ne
              sme ni na trenutak da se pita gde mu je porudžbina. -->
@@ -1529,7 +1552,7 @@ onMounted(loadRestaurant)
       <p v-if="formError" class="note note-bad small">{{ formError }}</p>
 
       <p class="hint">
-        <template v-if="rest.whatsappSend !== false && rest.whatsappNumber">
+        <template v-if="waWillOpen">
           Porudžbina odmah stiže osoblju. Otvoriće se i WhatsApp sa gotovom porukom — pritisnite
           <strong>Pošalji</strong> da lokal dobije obaveštenje i na telefon.
         </template>
@@ -2010,6 +2033,27 @@ onMounted(loadRestaurant)
   height: 36px;
   min-width: 0;
 }
+.bar-bell {
+  width: 40px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 1.05rem;
+  transition: all var(--fast);
+}
+.bar-bell:hover {
+  border-color: var(--b);
+}
+.bar-bell.called {
+  background: var(--tint-ok);
+  border-color: var(--tint-ok);
+  opacity: 1;
+}
+
 .cart-btn {
   position: relative;
   width: 40px;

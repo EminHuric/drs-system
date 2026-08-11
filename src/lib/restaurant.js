@@ -48,7 +48,15 @@ export function defaultRestaurant(patch = {}) {
     // Porudžbina uvek ide u sistem. WhatsApp je dodatni kanal koji
     // lokal može da isključi ako mu smeta što gost mora da pritisne
     // „Pošalji" u još jednoj aplikaciji.
-    whatsappSend: true,
+    // Šta lokal prima. Vlasnik gasi ono što ne koristi — ako nema
+    // POS terminal, gost ni ne vidi karticu kao izbor.
+    payments: ['cash', 'card'],
+
+    // WhatsApp važi SAMO za porudžbine za poneti i za dostavu.
+    // Porudžbina za stolom ide isključivo u panel — osoblje je u
+    // lokalu i gleda ekran, a poruka na tuđi telefon je samo još
+    // jedno mesto sa kog nešto može da se izgubi.
+    whatsappSend: false,
 
     // Rezervacija stola unapred (ime, telefon, datum, vreme, broj osoba).
     reservations: false,

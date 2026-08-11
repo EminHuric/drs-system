@@ -107,7 +107,12 @@
       "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=2 --screenshot=debug.png --window-size=390,520 \"file:///C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/debug.html\")",
       "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \"--screenshot=C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/debug.png\" --window-size=390,520 \"file:///C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/debug.html\")",
       "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --virtual-time-budget=2000 --window-size=390,900 --dump-dom \"file:///C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/mer.html\")",
-      "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless=new --disable-gpu --virtual-time-budget=2000 --window-size=390,900 --dump-dom \"file:///C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/mer.html\")"
+      "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless=new --disable-gpu --virtual-time-budget=2000 --window-size=390,900 --dump-dom \"file:///C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad/mer.html\")",
+      "Bash(cd \"C:/Users/Emin/.claude/projects/c--Users-Emin-Desktop-Programs-restaurant-orders/memory\" && ls 2>/dev/null && echo \"--- index ---\" && cat MEMORY.md 2>/dev/null | head -20)",
+      "Read(//c/Users/Emin/.claude/projects/c--Users-Emin-Desktop-Programs-restaurant-orders/memory/**)",
+      "Bash(node pay.cjs)",
+      "Bash(node gost.cjs)",
+      "Bash(curl -s \"http://localhost:5173/src/views/panel/PanelSettings.vue\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",

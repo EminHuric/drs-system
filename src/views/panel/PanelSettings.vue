@@ -23,6 +23,12 @@ import { normalizePhone, prettyPhone } from '@/lib/format'
 import { guestUrl, supportsDelivery, supportsDinein } from '@/lib/restaurant'
 import { BRAND_COLORS, BRAND_PALETTE, NEUTRAL_COLORS, CURRENCIES, MODES } from '@/lib/constants'
 
+// WhatsApp ima smisla samo ako lokal uopšte poslužuje goste van sale.
+// Namenu lokala (dostava/u lokalu) određuje platforma, „za poneti" vlasnik.
+const waAvailable = computed(
+  () => Boolean(f.value?.takeaway) || supportsDelivery(restaurant.value)
+)
+
 const locked = computed(() => isBlocked.value)
 const rid = computed(() => restaurant.value?.id)
 
@@ -53,7 +59,9 @@ function load() {
     assistantName: r.assistantName || '',
     venueInfo: r.venueInfo || '',
     facts: (r.facts || []).map((x) => ({ q: x.q || '', a: x.a || '' })),
-    whatsappSend: r.whatsappSend !== false,
+    payCash: !Array.isArray(r.payments) || r.payments.includes('cash'),
+    payCard: !Array.isArray(r.payments) || r.payments.includes('card'),
+    whatsappSend: r.whatsappSend === true,
     reservations: r.reservations === true,
     takeaway: r.takeaway === true,
     takeawayEtaMin: r.takeawayEtaMin ?? 15,
@@ -82,8 +90,14 @@ watch(restaurant, (r) => { if (r && !f.value) load() }, { immediate: true })
 async function save() {
   if (!f.value || locked.value) return
   if (!f.value.name.trim()) return toast.error('Naziv lokala ne može biti prazan.')
+  if (!f.value.payCash && !f.value.payCard)
+    return toast.error('Ostavite bar jedan način plaćanja — gost mora nečim da plati.')
+
+  // Broj se traži samo ako se WhatsApp zaista koristi. Ranije je
+  // tražen uvek, pa lokal koji ga je ugasio nije mogao da sačuva.
   const wa = normalizePhone(f.value.whatsappNumber)
-  if (wa.length < 8) return toast.error('WhatsApp broj nije ispravan.')
+  if (f.value.whatsappSend && wa.length < 8)
+    return toast.error('Upišite WhatsApp broj ili isključite slanje na WhatsApp.')
 
   saving.value = true
   try {
@@ -102,6 +116,10 @@ async function save() {
       assistantName: f.value.assistantName.trim().slice(0, 40),
       venueInfo: f.value.venueInfo.trim(),
       facts: f.value.facts.filter((x) => x.q.trim() && x.a.trim()),
+      payments: [
+        ...(f.value.payCash ? ['cash'] : []),
+        ...(f.value.payCard ? ['card'] : []),
+      ],
       whatsappSend: Boolean(f.value.whatsappSend),
       reservations: Boolean(f.value.reservations),
       takeaway: Boolean(f.value.takeaway),
@@ -601,21 +619,52 @@ const EMOJIS = ['🍽️', '🍕', '🍔', '🍣', '🥙', '🍜', '☕', '🍺'
         <section class="panel">
           <div class="card-head"><h3>Kontakt i porudžbine</h3></div>
           <div class="body">
-            <label class="switch">
+            <!-- Gost bira samo između gotovine i kartice. Ono što
+                 ovde isključite, njemu se i ne pokazuje. -->
+            <div class="field">
+              <label class="label">Šta primate od gosta</label>
+              <div class="switches">
+                <label class="switch">
+                  <input v-model="f.payCash" type="checkbox" :disabled="locked" />
+                  <span class="track"></span>
+                  <strong class="small">💵 Gotovina</strong>
+                </label>
+                <label class="switch">
+                  <input v-model="f.payCard" type="checkbox" :disabled="locked" />
+                  <span class="track"></span>
+                  <strong class="small">💳 Kartica</strong>
+                </label>
+              </div>
+              <span class="hint">
+                Nemate POS terminal? Isključite karticu i gost je neće ni videti.
+                Bar jedno mora da ostane uključeno.
+              </span>
+            </div>
+
+            <hr class="rule" />
+
+            <!-- WhatsApp je pomoćni kanal za goste koji NISU u lokalu.
+                 Porudžbina za stolom se nikad ne šalje — osoblje je tu
+                 i gleda panel. -->
+            <label v-if="waAvailable" class="switch">
               <input v-model="f.whatsappSend" type="checkbox" :disabled="locked" />
               <span class="track"></span>
               <span>
-                <strong class="small">Šalji porudžbine i na WhatsApp</strong>
+                <strong class="small">Šalji na WhatsApp: samo za poneti i dostavu</strong>
                 <span class="xs faint" style="display: block">
-                  Porudžbina uvek stiže u panel. Ovim se dodatno otvara WhatsApp gostu, pa vam
-                  zvoni i telefon. Isključeno — porudžbina ide samo u sistem, bez otvaranja
-                  ijedne druge aplikacije.
+                  Porudžbina uvek i pre svega stiže u panel — WhatsApp ništa ne zamenjuje.
+                  Ovo je za goste koji nisu kod vas: pored panela vam zazvoni i telefon.
+                  <strong>Porudžbina za stolom se nikada ne šalje na WhatsApp.</strong>
                 </span>
               </span>
             </label>
+            <p v-else class="xs faint">
+              Porudžbine stižu isključivo u panel. WhatsApp postaje dostupan ako uključite
+              „Za poneti" ili dostavu — samo za goste koji nisu u lokalu.
+            </p>
 
-            <div v-if="f.whatsappSend" class="field">
-              <label class="label">WhatsApp broj za porudžbine <span class="req">*</span></label>
+            <div v-if="f.whatsappSend && waAvailable" class="field">
+              <label class="label">WhatsApp broj <span class="req">*</span></label>
               <input v-model="f.whatsappNumber" class="input" :disabled="locked" placeholder="+382 69 123 456" />
               <span class="hint">
                 Trenutno:
@@ -885,6 +934,19 @@ const EMOJIS = ['🍽️', '🍕', '🍔', '🍣', '🥙', '🍜', '☕', '🍺'
   flex-direction: column;
   gap: var(--s4);
 }
+/* Prekidači za plaćanje stoje u redu, sa razmakom koji ih jasno deli. */
+.switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s5);
+  padding-top: 2px;
+}
+.rule {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: var(--s2) 0;
+}
+
 .two {
   display: grid;
   grid-template-columns: 1fr 1fr;

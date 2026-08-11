@@ -163,10 +163,24 @@ export const NEUTRAL_COLORS = [
 export const CURRENCIES = ['€', 'RSD', 'KM', 'kn', '$']
 
 /** Načini plaćanja — tekst koji vide i gost i osoblje. */
+/**
+ * Nazivi svih načina plaćanja koji su ikada postojali. Stare
+ * porudžbine nose stare oznake, pa mapa mora da ih zadrži da
+ * se u istoriji ne bi pojavila prazna polja.
+ */
 export const PAYMENTS = {
   cash: 'Gotovina',
-  card: 'Karticom',
+  card: 'Kartica',
   waiter: 'Konobaru',
   counter: 'Na kasi',
   online: 'Online',
 }
+
+/**
+ * Ono što lokal danas može da ponudi. Gost bira samo između ova
+ * dva — više od toga na kasi ništa ne znači, a gosta usporava.
+ */
+export const PAYMENT_CHOICES = [
+  { id: 'cash', icon: '💵', label: 'Gotovina' },
+  { id: 'card', icon: '💳', label: 'Kartica' },
+]
