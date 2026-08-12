@@ -34,7 +34,8 @@ import { ago, money, time } from '@/lib/format'
 import { ORDER_FLOW, ORDER_STATUS } from '@/lib/constants'
 import { themeStyle } from '@/lib/themes'
 import { useVenueTheme } from '@/composables/useVenueTheme'
-import { loadVenue } from '@/lib/venueCache'
+import { loadVenue, venueFromCache } from '@/lib/venueCache'
+import { orderFromCache } from '@/lib/orderCache'
 import { askNotifyPermission, notify, notifyState, notifySupported } from '@/lib/awake'
 import { applyRestaurantLocale, t } from '@/lib/i18n'
 import { chime } from '@/lib/sound'
@@ -42,14 +43,22 @@ import { chime } from '@/lib/sound'
 const route = useRoute()
 const now = useTicker(15000)
 
-const rest = ref(null)
+// Lokal je procitan jos na meniju, odakle gost i dolazi — uzima se
+// odmah, da ekran ne trepne dok se isti podatak dovlaci ponovo.
+const rest = ref(venueFromCache(route.params.slug))
 const ready = ref(false)
 const missing = ref(false)
 
 const orderRef = computed(() =>
   rest.value ? doc(db, 'restaurants', rest.value.id, 'orders', route.params.orderId) : null
 )
-const { data: order, loading, error } = useLiveDoc(orderRef)
+const { data: liveOrder, loading, error } = useLiveDoc(orderRef)
+
+// Porudzbina koju je gost upravo poslao stoji u memoriji, pa se
+// pracenje otvara odmah sa „Poslato — ceka potvrdu" umesto sa
+// „Ucitavanje porudzbine...". Sveza sa servera je tiho zameni.
+const seedOrder = ref(orderFromCache(route.params.orderId))
+const order = computed(() => liveOrder.value || seedOrder.value)
 
 const cur = computed(() => order.value?.currency || rest.value?.currency || '€')
 // Isti izgled kao na meniju — gost ne sme da oseti da je prešao u drugu aplikaciju.
@@ -193,9 +202,12 @@ onMounted(load)
 </script>
 
 <template>
-  <Loader v-if="!ready || loading" text="Učitavanje porudžbine…" />
-
-  <div v-else-if="missing || !rest || (!order && !loading)" class="msg">
+  <!--
+    Redosled je važan. Porudžbinu koju je gost upravo poslao imamo u
+    memoriji, pa se ekran otvara odmah — čeka se samo ako zaista
+    nemamo šta da pokažemo.
+  -->
+  <div v-if="(missing || error) && !order" class="msg">
     <Empty
       icon="🔍"
       :title="error ? 'Nemate pristup ovoj porudžbini' : 'Porudžbina nije pronađena'"
@@ -210,6 +222,8 @@ onMounted(load)
       </RouterLink>
     </Empty>
   </div>
+
+  <Loader v-else-if="!order || !rest" text="Učitavanje porudžbine…" />
 
   <div v-else class="page" :style="themeVars">
     <header class="head">
@@ -228,7 +242,12 @@ onMounted(load)
       <section class="hero" :class="{ done: order.status === 'done', bad: cancelled }">
         <span class="hero-ico">{{ ORDER_STATUS[order.status]?.icon }}</span>
         <h1>{{ ORDER_STATUS[order.status]?.guest }}</h1>
-        <p v-if="!finished && eta" class="muted small">Procenjeno vreme: oko {{ eta }} minuta</p>
+        <!-- Dok ne potvrde, gost treba da zna dve stvari: da je stiglo
+             i da ce mu se javiti ovde ako nesto ne bude moglo. -->
+        <p v-if="order.status === 'new'" class="muted small">
+          Osoblje je već vidi. Sačekajte potvrdu — ako nešto ne bude moglo, javiće vam ovde.
+        </p>
+        <p v-else-if="!finished && eta" class="muted small">Procenjeno vreme: oko {{ eta }} minuta</p>
         <p v-if="cancelled && order.cancelReason" class="small muted">
           Razlog: {{ order.cancelReason }}
         </p>

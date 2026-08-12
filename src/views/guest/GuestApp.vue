@@ -47,6 +47,7 @@ import { BADGES, LIVE_STATUSES, ORDER_STATUS, PAYMENT_CHOICES } from '@/lib/cons
 import { supportsDelivery, supportsDinein, supportsTakeaway } from '@/lib/restaurant'
 import { loadVenue } from '@/lib/venueCache'
 import { fastMenu } from '@/lib/fastRead'
+import { rememberOrder } from '@/lib/orderCache'
 import { themeStyle } from '@/lib/themes'
 import { useVenueTheme } from '@/composables/useVenueTheme'
 import { LOCALES, applyRestaurantLocale, currentLocale, locale, setLocale, t } from '@/lib/i18n'
@@ -759,6 +760,10 @@ async function submit() {
     }
 
     const ref_ = await addDoc(collection(db, 'restaurants', rid.value, 'orders'), payload)
+
+    // Ekran pracenja ovu porudzbinu vec ima — ne mora da je ceka nazad
+    // sa servera da bi gostu rekao da je poslata.
+    rememberOrder(ref_.id, { ...payload, id: ref_.id, createdAt: new Date() })
 
     saveGuest()
 
