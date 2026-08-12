@@ -7,6 +7,7 @@ import { money, minutesSince, time } from '@/lib/format'
 import { ORDER_STATUS, ORDER_FLOW } from '@/lib/constants'
 import { advance, cancel, setStatus, orderIcon, orderTitle } from '@/lib/orders'
 import { toast, humanError } from '@/stores/toast'
+import Modal from '@/components/ui/Modal.vue'
 import { buildStatusMessage, whatsappUrl } from '@/lib/whatsapp'
 
 const props = defineProps({
@@ -61,11 +62,30 @@ async function doAdvance() {
   }
 }
 
+// Otkazivanje bez objašnjenja je najgore što gost može da dobije:
+// porudžbina nestane i niko mu ne kaže zašto. Zato se razlog traži
+// pre nego što se otkaže — u dva dodira, ne kucanjem.
+const cancelOpen = ref(false)
+const cancelReason = ref('')
+
+const RAZLOZI = [
+  'Nemamo trenutno taj artikal',
+  'Prevelika gužva, ne stižemo',
+  'Kuhinja se zatvara',
+  'Gost je odustao',
+]
+
+function askCancel() {
+  cancelReason.value = ''
+  cancelOpen.value = true
+}
+
 async function doCancel() {
   busy.value = true
   try {
-    await cancel(props.restaurant.id, props.order)
+    await cancel(props.restaurant.id, props.order, cancelReason.value.trim())
     toast.ok(`Porudžbina ${props.order.code} je otkazana.`)
+    cancelOpen.value = false
   } catch (e) {
     toast.error(humanError(e))
   } finally {
@@ -239,7 +259,7 @@ function mapsUrl() {
         class="btn btn-ghost btn-sm"
         title="Otkaži porudžbinu"
         :disabled="busy"
-        @click="doCancel"
+        @click="askCancel"
       >
         ✕
       </button>
@@ -256,6 +276,38 @@ function mapsUrl() {
       ></span>
     </div>
   </article>
+
+  <!-- ── razlog otkazivanja ─────────────────────────────── -->
+  <Modal v-if="cancelOpen" title="Otkazivanje porudžbine" :busy="busy" @close="cancelOpen = false">
+    <p class="small muted">
+      Gost će videti ovaj razlog na svom telefonu i moći da vam odgovori u porukama.
+      Bez razloga mu porudžbina samo nestane i ne zna šta se desilo.
+    </p>
+
+    <div class="wrap-row" style="margin: var(--s3) 0">
+      <button
+        v-for="r in RAZLOZI"
+        :key="r"
+        class="chip"
+        :class="{ on: cancelReason === r }"
+        @click="cancelReason = r"
+      >
+        {{ r }}
+      </button>
+    </div>
+
+    <div class="field">
+      <label class="label">Ili napišite svojim rečima</label>
+      <input v-model="cancelReason" class="input" maxlength="120" placeholder="npr. Riba je danas rasprodata" />
+    </div>
+
+    <template #foot>
+      <button class="btn btn-ghost" :disabled="busy" @click="cancelOpen = false">Odustani</button>
+      <button class="btn btn-danger grow" :disabled="busy" @click="doCancel">
+        Otkaži porudžbinu
+      </button>
+    </template>
+  </Modal>
 </template>
 
 <style scoped>

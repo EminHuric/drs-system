@@ -88,9 +88,13 @@ async function cancelOrder() {
         Porudžbina je stigla osoblju. Molimo vas sačekajte potvrdu — javićemo vam ovde.
         Slobodno nastavite da razgledate meni.
       </p>
-      <p v-else-if="cancelled && order.cancelReason" class="small muted">
-        Razlog: {{ order.cancelReason }}
-      </p>
+      <template v-else-if="cancelled">
+        <p class="small muted">
+          Vaša porudžbina je otkazana.
+          <template v-if="order.cancelReason">Razlog: <strong>{{ order.cancelReason }}</strong>.</template>
+          Ako želite objašnjenje ili da poručite ponovo, pišite osoblju u porukama ispod.
+        </p>
+      </template>
       <p v-else-if="!finished && eta" class="small muted">Procenjeno vreme: oko {{ eta }} minuta</p>
 
       <span class="xs faint">Poslato {{ ago(order.createdAt, now) }} u {{ time(order.createdAt) }}</span>
@@ -160,7 +164,9 @@ async function cancelOrder() {
     </section>
 
     <!-- ── poruke osoblju ─────────────────────────────── -->
-    <section v-if="!finished" class="block">
+    <!-- Poruke ostaju otvorene i kad je porudzbina otkazana — bas tada
+         gost i ima sta da pita. Gase se tek kad je sve zavrseno. -->
+    <section v-if="order.status !== 'done'" class="block">
       <h4>Poruke osoblju</h4>
       <ChatPanel
         :restaurant-id="restaurantId"

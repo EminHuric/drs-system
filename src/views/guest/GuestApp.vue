@@ -41,6 +41,8 @@ import GuestAssistant from '@/components/GuestAssistant.vue'
 import DishRow from '@/components/DishRow.vue'
 import { byItem, fmtRating, summarize } from '@/lib/reviews'
 import { toast, humanError } from '@/stores/toast'
+import { chime } from '@/lib/sound'
+import { notify } from '@/lib/awake'
 import { money, normalizePhone, toDate } from '@/lib/format'
 import { orderCode } from '@/lib/codes'
 import { BADGES, LIVE_STATUSES, ORDER_STATUS, PAYMENT_CHOICES } from '@/lib/constants'
@@ -341,41 +343,110 @@ watch(myOrders, (lista) => {
   if (poslata && lista.some((o) => o.id === poslata.id)) justSent.value = null
 })
 
+// Otkazivanja koja je gost već pročitao. Bez ovoga bi mu obaveštenje
+// stajalo na ekranu zauvek.
+const seenCancels = ref([])
+try {
+  seenCancels.value = JSON.parse(localStorage.getItem('rds.otkazano') || '[]')
+} catch {
+  /* privatni režim */
+}
+
+function markCancelSeen(id) {
+  if (!id || seenCancels.value.includes(id)) return
+  seenCancels.value = [...seenCancels.value, id].slice(-20)
+  try {
+    localStorage.setItem('rds.otkazano', JSON.stringify(seenCancels.value))
+  } catch {
+    /* privatni režim */
+  }
+}
+
+const noviji = (a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0)
+
 const activeOrder = computed(() => {
   // Dok ne stigne sa servera, važi naš primerak — traka se pojavljuje
-  // istog trenutka. Posle toga je server jedini izvor istine, pa
-  // otkazana ili završena porudžbina sama nestaje sa trake.
+  // istog trenutka.
   if (justSent.value) return justSent.value
 
-  const live = myOrders.value
-    .filter((o) => LIVE_STATUSES.includes(o.status) && o.kind !== 'call')
-    .sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0))
-  return live[0] || null
+  const moje = myOrders.value.filter((o) => o.kind !== 'call').sort(noviji)
+
+  const ziva = moje.find((o) => LIVE_STATUSES.includes(o.status))
+  if (ziva) return ziva
+
+  // Otkazana porudžbina ostaje na traci dok je gost ne otvori. Da mu
+  // samo nestane, ne bi ni saznao da je otkazana ni zašto.
+  return moje.find((o) => o.status === 'cancelled' && !seenCancels.value.includes(o.id)) || null
 })
+
+const orderCancelled = computed(() => activeOrder.value?.status === 'cancelled')
+
+// Kad je gost poslednji put otvorio poruke. Drzi se i u localStorage
+// (da prezivi osvezavanje) i ovde (da Vue primeti promenu) — inace
+// bi obavestenje ostalo na ekranu i posle citanja.
+const seenAt = ref({})
+
+function markMsgSeen(id) {
+  if (!id) return
+  const kad = Date.now()
+  seenAt.value = { ...seenAt.value, [id]: kad }
+  try {
+    localStorage.setItem(`rds.seen.${id}`, String(kad))
+  } catch {
+    /* privatni rezim */
+  }
+}
+
+function lastSeen(id) {
+  if (seenAt.value[id]) return seenAt.value[id]
+  try {
+    return Number(localStorage.getItem(`rds.seen.${id}`) || 0)
+  } catch {
+    return 0
+  }
+}
 
 /** Osoblje je odgovorilo, a gost to još nije video. */
 const hasReply = computed(() => {
   const o = activeOrder.value
   if (!o?.lastMsgAt || o.lastMsgFrom !== 'staff') return false
-  try {
-    return (o.lastMsgAt.toMillis?.() ?? 0) > Number(localStorage.getItem(`rds.seen.${o.id}`) || 0)
-  } catch {
-    return true
-  }
+  return (o.lastMsgAt.toMillis?.() ?? 0) > lastSeen(o.id)
 })
 
 const myOrderOpen = ref(false)
 
+// Dok je prozor porudzbine otvoren, gost gleda bas u poruke — svaka
+// nova je time procitana i traka se ne pali iza otvorenog prozora.
+watch(
+  [myOrderOpen, () => activeOrder.value?.lastMsgAt],
+  () => {
+    if (myOrderOpen.value) markMsgSeen(activeOrder.value?.id)
+  }
+)
+
+// Odgovor osoblja ne sme da prođe kao sitna tačkica na traci. Gost
+// gleda meni, a ne ovaj ugao ekrana — zato i zvuk, i vibracija, i
+// sistemsko obaveštenje kad aplikacija nije u prvom planu.
+watch(hasReply, (ima, bilo) => {
+  if (!ima || bilo) return
+  chime()
+  notify(
+    rest.value?.name || 'Poruka iz lokala',
+    'Osoblje vam je odgovorilo na porudžbinu.',
+    'rds-msg-' + (activeOrder.value?.id || '')
+  )
+})
+
+function closeMyOrder() {
+  // Zatvaranje znači da je gost video obaveštenje o otkazivanju.
+  if (orderCancelled.value) markCancelSeen(activeOrder.value.id)
+  myOrderOpen.value = false
+}
+
 function openMyOrder() {
   myOrderOpen.value = true
   // Dodir na traku znači da je gost video odgovor osoblja.
-  const o = activeOrder.value
-  if (!o) return
-  try {
-    localStorage.setItem(`rds.seen.${o.id}`, String(Date.now()))
-  } catch {
-    /* privatni režim */
-  }
+  markMsgSeen(activeOrder.value?.id)
 }
 
 // ═══ ocene ════════════════════════════════════════════════════
@@ -1403,15 +1474,25 @@ onMounted(loadRestaurant)
       <!-- Porudžbina u toku — prati gosta po celom meniju dok ne bude
            gotova, da uvek može do statusa i do poruka osoblju. -->
       <Transition name="sheet">
-        <button v-if="activeOrder" class="mybar" :class="{ ping: hasReply }" @click="openMyOrder">
+        <button
+          v-if="activeOrder"
+          class="mybar"
+          :class="{ ping: hasReply, off: orderCancelled }"
+          @click="openMyOrder"
+        >
           <span class="my-ico">{{ ORDER_STATUS[activeOrder.status]?.icon }}</span>
           <span class="grow">
             <strong class="truncate">{{ ORDER_STATUS[activeOrder.status]?.guest }}</strong>
             <span class="xs truncate">
+              <template v-if="orderCancelled">
+                {{ u('Dodirnite za razlog i poruke osoblju') }}
+              </template>
+              <template v-else>
               #{{ activeOrder.code }}
               <template v-if="activeOrder.type === 'takeaway' && activeOrder.pickup">
                 · preuzimanje
                 {{ activeOrder.pickup.mode === 'time' ? activeOrder.pickup.time : u('što pre') }}
+              </template>
               </template>
             </span>
           </span>
@@ -1419,6 +1500,19 @@ onMounted(loadRestaurant)
             💬
             <span v-if="hasReply" class="my-dot"></span>
           </span>
+        </button>
+      </Transition>
+
+      <!-- Odgovor osoblja dobija svoju traku iznad porudžbine. Gost
+           mora da vidi da ga neko čeka, ne da traži tačkicu. -->
+      <Transition name="sheet">
+        <button v-if="hasReply" class="msgbar" @click="openMyOrder">
+          <span class="msg-ico">💬</span>
+          <span class="grow">
+            <strong>{{ u('Osoblje vam je odgovorilo') }}</strong>
+            <span class="xs">{{ u('Dodirnite da pročitate poruku') }}</span>
+          </span>
+          <span class="msg-go">{{ u('Otvori') }}</span>
         </button>
       </Transition>
 
@@ -1867,7 +1961,7 @@ onMounted(loadRestaurant)
       :restaurant-id="rid"
       :restaurant="rest"
       :now="now"
-      @close="myOrderOpen = false"
+      @close="closeMyOrder"
     />
 
     <PhotoViewer v-if="viewer" :photos="viewer.photos" :start="viewer.index" @close="viewer = null" />
@@ -2758,6 +2852,59 @@ onMounted(loadRestaurant)
 }
 .docks > * {
   pointer-events: auto;
+}
+
+/* ── odgovor osoblja ── */
+.msgbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: 11px var(--s4);
+  border-radius: var(--r-md);
+  background: var(--b);
+  color: #fff;
+  text-align: left;
+  box-shadow: 0 12px 28px -14px var(--b);
+  animation: msgIn 0.45s var(--ease);
+}
+.msgbar strong {
+  display: block;
+  font-size: var(--fs-sm);
+  line-height: 1.2;
+}
+.msgbar .xs {
+  display: block;
+  opacity: 0.85;
+}
+.msg-ico {
+  font-size: 1.2rem;
+  flex: none;
+}
+.msg-go {
+  flex: none;
+  padding: 5px 11px;
+  border-radius: var(--r-full);
+  background: rgba(255, 255, 255, 0.22);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+@keyframes msgIn {
+  from {
+    transform: translateY(10px) scale(0.98);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .msgbar {
+    animation: none;
+  }
+}
+
+/* Otkazana porudžbina se ne sme izgubiti među ostalim trakama. */
+.mybar.off {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 12%, var(--surface));
 }
 
 .mybar {
