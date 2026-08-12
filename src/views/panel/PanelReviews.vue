@@ -109,6 +109,22 @@ async function removeReview(r) {
     await deleteDoc(doc(db, 'restaurants', restaurant.value.id, 'reviews', r.id))
     toast.ok('Recenzija je obrisana.')
   } catch (e) {
+    // Brisanje traži pravilo koje se posebno šalje u Firebase
+    // (firebase deploy --only firestore:rules). Dok to ne prođe, baza
+    // odbija brisanje — ali vlasnik ne sme da ostane praznih ruku, pa
+    // se recenzija bar skloni sa stranice.
+    if (e?.code === 'permission-denied') {
+      try {
+        await updateDoc(doc(db, 'restaurants', restaurant.value.id, 'reviews', r.id), {
+          visible: false,
+          updatedAt: serverTimestamp(),
+        })
+        toast.ok('Recenzija je sklonjena sa stranice. Za trajno brisanje pošaljite pravila u Firebase.')
+        return
+      } catch {
+        /* ni sakrivanje nije prošlo — ide obična poruka o grešci */
+      }
+    }
     toast.error(humanError(e))
   }
 }
