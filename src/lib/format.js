@@ -11,7 +11,14 @@ const nf0 = new Intl.NumberFormat('sr-RS', { maximumFractionDigits: 0 })
 /** Dinari se ne pišu sa parama, ostale valute da. */
 export function money(amount, currency = '€') {
   const n = Number(amount) || 0
-  if (currency === 'RSD') return `${nf0.format(Math.round(n))} RSD`
+
+  // Dinar se piše bez para SAMO kad para nema. Zaokruživanje je pravilo
+  // vidljivu grešku u računu: jelo od 6,5 pisalo je „7 RSD", a dva
+  // komada „13 RSD" — gost sabere 7+7 i vidi dinar manje nego što je
+  // naplaćeno. Cena koja ima pare prikazuje se sa parama.
+  const fmt = Number.isInteger(n) ? nf0 : nf2
+
+  if (currency === 'RSD') return `${fmt.format(n)} RSD`
   return `${nf2.format(n)} ${currency}`
 }
 

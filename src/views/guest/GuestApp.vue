@@ -333,16 +333,23 @@ const now = useTicker(15000)
 
 const justSent = ref(null)
 
+// Čim porudžbina stigne sa servera, naš privremeni primerak se briše.
+// Bez ovoga bi traka i posle otkazivanja stajala na „čeka potvrdu",
+// jer bi se i dalje čitala ona koju smo sami sastavili.
+watch(myOrders, (lista) => {
+  const poslata = justSent.value
+  if (poslata && lista.some((o) => o.id === poslata.id)) justSent.value = null
+})
+
 const activeOrder = computed(() => {
+  // Dok ne stigne sa servera, važi naš primerak — traka se pojavljuje
+  // istog trenutka. Posle toga je server jedini izvor istine, pa
+  // otkazana ili završena porudžbina sama nestaje sa trake.
+  if (justSent.value) return justSent.value
+
   const live = myOrders.value
     .filter((o) => LIVE_STATUSES.includes(o.status) && o.kind !== 'call')
     .sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0))
-
-  // Čim ista porudžbina stigne sa servera, ona preuzima — od tada je
-  // status uživo i sam se menja kad ga osoblje pomeri.
-  const saServera = live.find((o) => o.id === justSent.value?.id)
-  if (saServera) return saServera
-  if (justSent.value) return justSent.value
   return live[0] || null
 })
 
