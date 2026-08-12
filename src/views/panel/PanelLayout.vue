@@ -217,7 +217,7 @@ onBeforeUnmount(() => {
       <a
         v-if="restaurant?.slug"
         class="btn btn-soft btn-sm"
-        :href="guestUrl(restaurant.slug)"
+        :href="guestUrl(restaurant.slug, '', restaurant.id)"
         target="_blank"
         rel="noopener"
       >

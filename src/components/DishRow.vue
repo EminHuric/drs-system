@@ -41,7 +41,14 @@ const emit = defineEmits(['open', 'add'])
   >
     <span class="dish-photo">
       <img v-if="item.image" :src="item.image" :alt="item.name" loading="lazy" decoding="async" />
-      <span v-else class="dish-fallback">{{ item.emoji || '🍽️' }}</span>
+      <!--
+        Bez fotografije: ako je vlasnik izabrao znak, stoji znak; ako
+        nije, stoji početno slovo jela krupno i tiho. Deset istih
+        tanjirića jedan ispod drugog izgleda kao da slika fali —
+        slovo izgleda kao da je tako i zamišljeno.
+      -->
+      <span v-else-if="item.emoji" class="dish-fallback">{{ item.emoji }}</span>
+      <span v-else class="dish-letter" aria-hidden="true">{{ (item.name || '?').trim().charAt(0) }}</span>
       <span v-if="qty" class="dish-qty">{{ qty }}</span>
     </span>
 
@@ -148,8 +155,19 @@ const emit = defineEmits(['open', 'add'])
   font-size: 2.6rem;
   filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.18));
 }
-.dish-photo:has(.dish-fallback) {
+.dish-photo:has(.dish-fallback),
+.dish-photo:has(.dish-letter) {
   background: linear-gradient(145deg, color-mix(in srgb, var(--b) 20%, var(--surface)), var(--surface-3));
+}
+.dish-letter {
+  font-family: var(--font-display, var(--font));
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: color-mix(in srgb, var(--b) 55%, transparent);
+  text-transform: uppercase;
+  user-select: none;
 }
 
 .dish-qty {

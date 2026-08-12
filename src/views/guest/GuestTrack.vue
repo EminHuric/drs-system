@@ -34,7 +34,7 @@ import { ago, money, time } from '@/lib/format'
 import { ORDER_FLOW, ORDER_STATUS } from '@/lib/constants'
 import { themeStyle } from '@/lib/themes'
 import { useVenueTheme } from '@/composables/useVenueTheme'
-import { rememberVenue, venueFromCache } from '@/lib/venueCache'
+import { loadVenue } from '@/lib/venueCache'
 import { askNotifyPermission, notify, notifyState, notifySupported } from '@/lib/awake'
 import { applyRestaurantLocale, t } from '@/lib/i18n'
 import { chime } from '@/lib/sound'
@@ -92,35 +92,24 @@ async function load() {
     return
   }
 
-  // Gost ovamo stiže sa menija, gde je lokal već pročitan. Ponovno
-  // dovlačenje istog dokumenta držalo je crn ekran nekoliko sekundi
-  // baš u trenutku kad gost najviše želi da vidi potvrdu.
-  const cached = venueFromCache(route.params.slug)
-  if (cached) {
-    rest.value = cached
-    applyRestaurantLocale(cached.guestLocale)
-    ready.value = true
-  }
-
   try {
-    // Anonimna sesija mora da postoji da bi pravila prepoznala da je
-    // ovo baš ta porudžbina koju je gost napravio. Ne čeka se pre
-    // čitanja lokala — meni je javan, pa oba idu uporedo.
+    // Sesija i lokal idu uporedo. Ranije se sesija čekala prva, pa je
+    // gost posle „Pošalji" gledao crn ekran dok se ne prijavi.
     const session = ensureGuestSession()
 
-    if (!cached) {
-      const snap = await getDocs(
-        query(collection(db, 'restaurants'), where('slug', '==', route.params.slug), limit(1))
-      )
-      if (snap.empty) {
-        missing.value = true
-      } else {
-        rest.value = { id: snap.docs[0].id, ...snap.docs[0].data() }
-        rememberVenue(route.params.slug, rest.value)
-        applyRestaurantLocale(rest.value.guestLocale)
-      }
+    const venue = await loadVenue(route.params.slug, (svez) => {
+      rest.value = svez
+    })
+
+    if (!venue) {
+      missing.value = true
+    } else {
+      rest.value = venue
+      applyRestaurantLocale(venue.guestLocale)
     }
 
+    // Porudžbina se ne sme čitati pre sesije — pravila po njoj
+    // prepoznaju da je baš ovaj gost napravio ovu porudžbinu.
     await session
   } catch (e) {
     console.error(e)

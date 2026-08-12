@@ -8,7 +8,12 @@
 
 import { initializeApp, deleteApp } from 'firebase/app'
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from 'firebase/firestore'
 
 import { FALLBACK_CONFIG, FALLBACK_SUPER_ADMINS } from './firebase.config'
 
@@ -50,7 +55,18 @@ let _db = null
 if (firebaseReady) {
   _app = initializeApp(firebaseConfig)
   _auth = getAuth(_app)
-  _db = getFirestore(_app)
+  // Meni se pamti na uređaju. Gost koji se vrati za sto ga vidi
+  // istog trenutka, bez čekanja na mrežu, a sveži podaci stignu
+  // odmah zatim i sami se ubace. Na slaboj vezi je to razlika
+  // između praznog ekrana i menija.
+  try {
+    _db = initializeFirestore(_app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    })
+  } catch {
+    // Privatni režim ili stariji pregledač — radi i bez pamćenja.
+    _db = getFirestore(_app)
+  }
   // Sesija preživljava osvežavanje stranice i zatvaranje taba.
   setPersistence(_auth, browserLocalPersistence).catch(() => {})
 } else {

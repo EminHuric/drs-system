@@ -432,7 +432,7 @@ function byLabel(a, b) {
     <!-- ── QR jednog stola ─────────────────────────────── -->
     <Modal v-if="qrTable" :title="`QR kod · sto ${qrTable.label}`" @close="qrTable = null">
       <QrCode
-        :text="guestUrl(restaurant.slug, qrTable.label)"
+        :text="guestUrl(restaurant.slug, qrTable.label, restaurant.id)"
         :label="`${restaurant.name} · Sto ${qrTable.label}`"
       />
       <p class="hint center">
@@ -450,7 +450,7 @@ function byLabel(a, b) {
       <div class="qr-grid">
         <div v-for="t in printableTables" :key="t.id" class="qr-item">
           <QrCode
-            :text="guestUrl(restaurant.slug, t.label)"
+            :text="guestUrl(restaurant.slug, t.label, restaurant.id)"
             :size="150"
             :label="`Sto ${t.label}`"
           />

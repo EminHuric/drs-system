@@ -129,11 +129,22 @@
       "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --enable-logging=stderr --v=0 --virtual-time-budget=8000 --dump-dom \"http://localhost:5173/r/emin1\")",
       "Bash(cp err.html \"c:/Users/Emin/Desktop/Programs/restaurant-orders/err.html\")",
       "Bash(node probaj.cjs \"http://localhost:5173/err.html\")",
-      "Bash(rm -f err.html)"
+      "Bash(rm -f err.html)",
+      "Bash(rm -rf cp3)",
+      "Bash(node greska.cjs)",
+      "Bash(grep -oE \"dish-name[^<]*<[^>]*>[^<]{3,40}\" dom.html)",
+      "Bash(grep -o 'id=\"app\".\\\\{0,400\\\\}' dom.html)",
+      "Bash(node greska.cjs \"http://localhost:5173/proveri-brzinu.html?slug=emin1&report=5199\")",
+      "Bash(node probaj.cjs \"http://localhost:5173/proveri-brzinu.html?slug=emin1\")",
+      "Bash(cp proveri-brzinu.html dist/)",
+      "Bash(npx vite *)",
+      "Bash(node greska.cjs \"http://localhost:4173/proveri-brzinu.html?slug=emin1&report=5199\")",
+      "Bash(cd \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad\" && node kes.cjs && cd \"c:/Users/Emin/Desktop/Programs/restaurant-orders\" && node -e \" *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",
-      "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\views\\panel"
+      "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\views\\panel",
+      "C:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders"
     ]
   }
 }

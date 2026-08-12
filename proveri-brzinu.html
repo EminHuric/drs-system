@@ -1,0 +1,82 @@
+<!doctype html>
+<!--
+  Merenje: koliko gost stvarno čeka.
+
+  Otvara meni u okviru i meri kad se šta pojavi. Bez ovoga se
+  „sporo je" ne može ni potvrditi ni oboriti.
+
+      npm run dev
+      http://localhost:5173/proveri-brzinu.html?slug=emin1
+
+  Za probu na slaboj vezi: u pregledaču F12 → Network → Slow 4G.
+-->
+<html lang="sr">
+  <head>
+    <meta charset="utf-8" />
+    <title>RDS — merenje brzine</title>
+    <style>
+      body { font: 15px/1.7 system-ui, sans-serif; padding: 24px; }
+      pre { background: #f4f4f6; padding: 14px; border-radius: 10px; }
+      iframe { width: 400px; height: 640px; border: 1px solid #ddd; border-radius: 12px; }
+      .ok { color: #1a7f4b; font-weight: 600; }
+      .bad { color: #c0392b; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <h1>Koliko gost čeka</h1>
+    <pre id="out">Merim…</pre>
+    <iframe id="f"></iframe>
+
+    <script>
+      const out = document.getElementById('out')
+      const f = document.getElementById('f')
+      const slug = new URLSearchParams(location.search).get('slug') || 'emin1'
+      const port = new URLSearchParams(location.search).get('report')
+
+      const redovi = []
+      const t0 = performance.now()
+      const kad = () => Math.round(performance.now() - t0)
+
+      const ciljevi = [
+        ['prvi piksel (bilo šta na ekranu)', () => f.contentDocument?.querySelector('#app')?.children.length],
+        ['naziv lokala', () => f.contentDocument?.querySelector('h1')],
+        ['prvo jelo', () => f.contentDocument?.querySelector('.dish')],
+        ['dugme korpe', () => f.contentDocument?.querySelector('.cart-btn')],
+      ]
+      const nadjeno = new Set()
+
+      // `v` je broj lokala iz QR koda — meri se i sa njim i bez njega.
+      const v = new URLSearchParams(location.search).get('v')
+      f.src = '/r/' + slug + (v ? '?v=' + encodeURIComponent(v) : '')
+
+      const timer = setInterval(() => {
+        for (const [ime, nadji] of ciljevi) {
+          if (nadjeno.has(ime)) continue
+          let ima = false
+          try {
+            ima = Boolean(nadji())
+          } catch {
+            /* okvir se još učitava */
+          }
+          if (ima) {
+            nadjeno.add(ime)
+            const ms = kad()
+            const ocena = ms < 800 ? 'ok' : 'bad'
+            redovi.push(`<span class="${ocena}">${String(ms).padStart(5)} ms</span>  ${ime}`)
+            out.innerHTML = redovi.join('\n')
+          }
+        }
+        if (nadjeno.size === ciljevi.length || kad() > 20000) {
+          clearInterval(timer)
+          if (nadjeno.size < ciljevi.length) {
+            redovi.push(`<span class="bad">nije stiglo:</span> ` +
+              ciljevi.filter(([i]) => !nadjeno.has(i)).map(([i]) => i).join(', '))
+            out.innerHTML = redovi.join('\n')
+          }
+          if (port) new Image().src = `http://localhost:${port}/?r=` +
+            encodeURIComponent(out.textContent)
+        }
+      }, 40)
+    </script>
+  </body>
+</html>

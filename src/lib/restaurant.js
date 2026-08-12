@@ -119,7 +119,14 @@ export function supportsTakeaway(r) {
   return r?.takeaway === true
 }
 
-export function guestUrl(slug, table) {
+export function guestUrl(slug, table, id) {
   const base = `${window.location.origin}/r/${slug}`
-  return table ? `${base}?sto=${encodeURIComponent(table)}` : base
+  const p = new URLSearchParams()
+  if (table) p.set('sto', table)
+  // Broj lokala u samom kodu stedi gostu jedan odlazak do baze: meni
+  // se cita odmah, bez trazenja lokala po adresi. Ako ga nema (stari
+  // odstampani kod), sve radi kao i pre, samo za pola sekunde sporije.
+  if (id) p.set('v', id)
+  const q = p.toString()
+  return q ? `${base}?${q}` : base
 }

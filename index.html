@@ -9,6 +9,11 @@
       name="description"
       content="RDS — Restaurant Digital Solutions. Digitalni meni, naručivanje za sto i dostava na adresu, uživo praćenje porudžbina."
     />
+    <!-- Veza sa bazom se otvara pre nego sto je kod uopste zatrazi.
+         Na mobilnoj mrezi to skida nekoliko stotina milisekundi. -->
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin />
+    <link rel="dns-prefetch" href="https://firebaseinstallations.googleapis.com" />
     <title>RDS — Restaurant Digital Solutions</title>
   </head>
   <body>

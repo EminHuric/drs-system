@@ -166,8 +166,12 @@ router.beforeEach(async (to) => {
     return { name: 'setup' }
   }
 
-  // Sačekaj da se uloga pročita iz baze, inače bi guard odbio i one koji smeju.
-  if (!authReady.value) {
+  const need = to.meta.requires
+
+  // Uloga se čeka samo za stranice koje je traže. Meni gosta je javan,
+  // pa nema razloga da stoji dok mreža ne javi ko je prijavljen —
+  // upravo to je držalo prazan ekran posle skeniranja koda.
+  if (need && !authReady.value) {
     await new Promise((resolve) => {
       const stop = setInterval(() => {
         if (authReady.value) {
@@ -177,8 +181,6 @@ router.beforeEach(async (to) => {
       }, 30)
     })
   }
-
-  const need = to.meta.requires
 
   if (need === 'platform' && role.value !== 'platform') {
     return role.value === 'owner'

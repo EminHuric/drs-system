@@ -45,7 +45,8 @@ import { money, normalizePhone, toDate } from '@/lib/format'
 import { orderCode } from '@/lib/codes'
 import { BADGES, LIVE_STATUSES, ORDER_STATUS, PAYMENT_CHOICES } from '@/lib/constants'
 import { supportsDelivery, supportsDinein, supportsTakeaway } from '@/lib/restaurant'
-import { rememberVenue } from '@/lib/venueCache'
+import { loadVenue } from '@/lib/venueCache'
+import { fastMenu } from '@/lib/fastRead'
 import { themeStyle } from '@/lib/themes'
 import { useVenueTheme } from '@/composables/useVenueTheme'
 import { LOCALES, applyRestaurantLocale, currentLocale, locale, setLocale, t } from '@/lib/i18n'
@@ -66,17 +67,40 @@ async function loadRestaurant() {
     loading.value = false
     return
   }
+  // Brzo čitanje trči uporedo sa kešom; šta prvo stigne, to se crta.
+  // Broj lokala ume da stigne u samom QR kodu — tada meni krece bez
+  // trazenja lokala po adresi.
+  const brzo = fastMenu(route.params.slug, undefined, route.query.v)
+    .then((data) => {
+      seedTried.value = true
+      if (!data) return null
+      if (!rest.value) {
+        rest.value = data.venue
+        applyRestaurantLocale(data.venue.guestLocale)
+      }
+      seedCategories.value = data.categories
+      seedItems.value = data.items
+      loading.value = false
+      return data.venue
+    })
+    .catch(() => {
+      seedTried.value = true
+      return null
+    })
+
   try {
-    const snap = await getDocs(
-      query(collection(db, 'restaurants'), where('slug', '==', route.params.slug), limit(1))
-    )
-    if (snap.empty) {
+    // Vraća se ono što je dostupno odmah (keš), a svežija verzija
+    // stigne kroz drugi argument i sama se ubaci — bez treptaja.
+    const venue = (await loadVenue(route.params.slug, (svez) => {
+      rest.value = svez
+    })) || (await brzo)
+
+    if (!venue) {
       notFound.value = true
     } else {
-      rest.value = { id: snap.docs[0].id, ...snap.docs[0].data() }
-      rememberVenue(route.params.slug, rest.value)
+      rest.value = venue
       // Jezik lokala važi dok ga gost sam ne promeni.
-      applyRestaurantLocale(rest.value.guestLocale)
+      applyRestaurantLocale(venue.guestLocale)
     }
   } catch (e) {
     console.error(e)
@@ -133,8 +157,29 @@ const reviewQuery = computed(() =>
     : null
 )
 
-const { items: rawCategories } = useLiveCollection(catQuery)
-const { items: rawItems, loading: itemsLoading } = useLiveCollection(itemQuery)
+const { items: liveCategories } = useLiveCollection(catQuery)
+const { items: liveItems, loading: liveItemsLoading } = useLiveCollection(itemQuery)
+
+// ═══ brzo prvo čitanje ════════════════════════════════════════
+//
+// SDK-u treba oko dve sekunde do prvog podatka jer pre upita odradi
+// rukovanje sa serverom. Meni je javan, pa se isto pročita jednim
+// običnim HTTPS pozivom i nacrta odmah. Kad se SDK prikači, njegovi
+// podaci preuzmu — od tada je sve uživo, kao i do sada.
+
+const seedCategories = shallowRef([])
+const seedItems = shallowRef([])
+const seedTried = ref(false)
+
+const rawCategories = computed(() =>
+  liveCategories.value.length ? liveCategories.value : seedCategories.value
+)
+const rawItems = computed(() =>
+  liveItems.value.length ? liveItems.value : seedItems.value
+)
+const itemsLoading = computed(
+  () => liveItemsLoading.value && !seedItems.value.length && !seedTried.value
+)
 const { items: tables } = useLiveCollection(tableQuery)
 const { items: rawReviews, error: reviewError } = useLiveCollection(reviewQuery)
 

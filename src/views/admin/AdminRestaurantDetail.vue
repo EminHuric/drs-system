@@ -324,7 +324,7 @@ async function toggleAccepting() {
 
     <!-- ── QR ─────────────────────────────────────────── -->
     <Modal v-if="qrOpen" title="QR kod lokala" @close="qrOpen = false">
-      <QrCode :text="guestUrl(rest.slug)" :label="rest.name" />
+      <QrCode :text="guestUrl(rest.slug, '', rest.id)" :label="rest.name" />
       <p class="hint center">
         Ovaj kod vodi na meni bez unapred izabranog stola. Kodove po stolovima vlasnik pravi
         u svom panelu, u odeljku „Raspored stolova“.
