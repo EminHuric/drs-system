@@ -121,7 +121,15 @@
       "Bash(node sve.cjs)",
       "Bash(rm -rf chrome-profil)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:5173/proveri-prevod.html\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:5173/src/lib/translate.js\")"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:5173/src/lib/translate.js\")",
+      "Bash(node proveri-brzinu.mjs)",
+      "Bash(node brzo.cjs)",
+      "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --virtual-time-budget=8000 --dump-dom \"http://localhost:5173/r/emin1\")",
+      "Bash(grep -o 'id=\"app\"[^>]*>.\\\\{0,200\\\\}')",
+      "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --enable-logging=stderr --v=0 --virtual-time-budget=8000 --dump-dom \"http://localhost:5173/r/emin1\")",
+      "Bash(cp err.html \"c:/Users/Emin/Desktop/Programs/restaurant-orders/err.html\")",
+      "Bash(node probaj.cjs \"http://localhost:5173/err.html\")",
+      "Bash(rm -f err.html)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",

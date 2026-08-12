@@ -45,10 +45,11 @@ import { money, normalizePhone, toDate } from '@/lib/format'
 import { orderCode } from '@/lib/codes'
 import { BADGES, LIVE_STATUSES, ORDER_STATUS, PAYMENT_CHOICES } from '@/lib/constants'
 import { supportsDelivery, supportsDinein, supportsTakeaway } from '@/lib/restaurant'
-import { GUEST_THEMES, themeStyle } from '@/lib/themes'
+import { rememberVenue } from '@/lib/venueCache'
+import { themeStyle } from '@/lib/themes'
+import { useVenueTheme } from '@/composables/useVenueTheme'
 import { LOCALES, applyRestaurantLocale, currentLocale, locale, setLocale, t } from '@/lib/i18n'
 import { ensure as ensureTranslation, tr } from '@/lib/translate'
-import { buildOrderMessage, openWhatsApp } from '@/lib/whatsapp'
 
 const route = useRoute()
 const router = useRouter()
@@ -73,6 +74,7 @@ async function loadRestaurant() {
       notFound.value = true
     } else {
       rest.value = { id: snap.docs[0].id, ...snap.docs[0].data() }
+      rememberVenue(route.params.slug, rest.value)
       // Jezik lokala važi dok ga gost sam ne promeni.
       applyRestaurantLocale(rest.value.guestLocale)
     }
@@ -94,14 +96,10 @@ const brand = computed(() => rest.value?.brandColor || '#e2603f')
 const themeVars = computed(() => themeStyle(rest.value))
 const freeTheme = computed(() => (rest.value?.guestTheme || 'auto') === 'auto')
 
-watch(
-  () => [rest.value?.guestTheme, rest.value?.brandColor],
-  () => {
-    const t = GUEST_THEMES[rest.value?.guestTheme]
-    const color = t?.vars?.['--bg'] || (t?.dark ? '#0b0e15' : '#f5f6f9')
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', color)
-  }
-)
+// Boje lokala idu na koren dokumenta, ne samo na ovaj <div>. Sve
+// što se teleportuje na <body> — korpa, izbor stola, rezervacija,
+// pomoćnik — inače ostane crno preko zelenog menija.
+useVenueTheme(rest)
 
 const closed = computed(
   () => !rest.value || rest.value.status !== 'active' || rest.value.acceptingOrders === false
@@ -120,8 +118,17 @@ const tableQuery = computed(() =>
   rid.value ? query(collection(db, 'restaurants', rid.value, 'tables'), orderBy('sort')) : null
 )
 
+// Utisci se ne čitaju dok se meni ne iscrta. Šezdeset dokumenata
+// ne sme da stoji ispred jela — gost je došao da jede, ne da čita.
+const wantReviews = ref(false)
+onMounted(() => {
+  const go = () => (wantReviews.value = true)
+  if ('requestIdleCallback' in window) requestIdleCallback(go, { timeout: 2500 })
+  else setTimeout(go, 1200)
+})
+
 const reviewQuery = computed(() =>
-  rid.value
+  rid.value && wantReviews.value
     ? query(collection(db, 'restaurants', rid.value, 'reviews'), orderBy('createdAt', 'desc'), limit(60))
     : null
 )
@@ -633,15 +640,6 @@ const payOptions = computed(() => {
   return list.length ? list : [PAYMENT_CHOICES[0]]
 })
 
-// Da li će se WhatsApp otvoriti — isto pravilo kao pri slanju, samo
-// da bi gost unapred znao šta ga čeka posle dugmeta.
-const waWillOpen = computed(
-  () =>
-    ['takeaway', 'delivery'].includes(orderType.value) &&
-    rest.value?.whatsappSend === true &&
-    Boolean(rest.value?.whatsappNumber)
-)
-
 // Ako se promeni način poručivanja, izabrano plaćanje možda više ne postoji.
 watch(payOptions, (list) => {
   if (!list.some((o) => o.id === guest.value.payment)) guest.value.payment = list[0].id
@@ -722,25 +720,13 @@ async function submit() {
     cart.value.clear()
     checkout.value = false
 
-    // Porudžbina je već u sistemu i osoblje je vidi u panelu. WhatsApp
-    // ide SAMO za poneti i dostavu, i samo ako ga je vlasnik uključio:
-    // tu je gost van lokala i lokal hoće zvono i na telefonu. Za sto u
-    // lokalu se ne šalje ništa — osoblje je tu i gleda ekran, a poruka
-    // na tuđi telefon je samo još jedno mesto sa kog se gubi.
-    const waModes = ['takeaway', 'delivery']
-    const sendWa =
-      waModes.includes(orderType.value) &&
-      rest.value.whatsappSend === true &&
-      Boolean(rest.value.whatsappNumber)
-
+    // Porudžbina je u sistemu i osoblje je vidi u panelu — to je jedini
+    // put kojim ide. WhatsApp se više ne otvara sam: gost je pritisnuo
+    // „Pošalji" i očekuje potvrdu, a ne skok u drugu aplikaciju.
     router.push({
       name: 'guest-order',
       params: { slug: route.params.slug, orderId: ref_.id },
     })
-
-    if (sendWa) {
-      openWhatsApp(rest.value.whatsappNumber, buildOrderMessage(payload, rest.value))
-    }
   } catch (e) {
     formError.value = guestError(e)
   } finally {
@@ -1673,13 +1659,7 @@ onMounted(loadRestaurant)
       <p v-if="formError" class="note note-bad small">{{ formError }}</p>
 
       <p class="hint">
-        <template v-if="waWillOpen">
-          Porudžbina odmah stiže osoblju. Otvoriće se i WhatsApp sa gotovom porukom — pritisnite
-          <strong>Pošalji</strong> da lokal dobije obaveštenje i na telefon.
-        </template>
-        <template v-else>
-          Porudžbina odmah stiže osoblju. Pratićete je uživo na sledećem ekranu.
-        </template>
+        {{ u('Porudžbina odmah stiže osoblju. Pratićete je uživo na sledećem ekranu.') }}
       </p>
 
       <template #foot>
@@ -1690,7 +1670,7 @@ onMounted(loadRestaurant)
           :disabled="sending || !lines.length || belowMin"
           @click="submit"
         >
-          Pošalji porudžbinu · {{ money(total, cur) }}
+          {{ u('Pošalji porudžbinu') }}
         </button>
       </template>
     </Modal>
