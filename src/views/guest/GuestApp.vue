@@ -148,6 +148,46 @@ function TR(s) {
   return translated.value ? tr(rid.value, locale.value, srcLocale.value, s) : String(s || '')
 }
 
+// Naš tekst koji nije stigao u i18n. Izvor je uvek srpski, a rečnik
+// se deli između svih lokala — otud stalni ključ 'ui'.
+const UI = [
+  'Sve',
+  'Dostava',
+  'U lokalu',
+  'Za poneti',
+  'Ništa nije pronađeno',
+  'Sto',
+  'promeni',
+  'Izaberite jezik',
+  'Meni i utisci se prevode automatski.',
+  'Budite prvi koji će ostaviti utisak.',
+  'Prikaži još utisaka',
+  'Još nema utisaka. Ako ste bili kod nas, napišite par reči — pomaže i nama i gostima.',
+  'Ostavi prvi utisak',
+  'sa potvrđenom porudžbinom',
+  'Završi porudžbinu',
+  'što pre',
+  'Sadrži alergene',
+  'Napomena za kuhinju',
+  'npr. bez luka, dobro pečeno…',
+  'Dodirnite sto za kojim sedite.',
+  'Ili upišite broj stola',
+  'Broj stola',
+  'Učitavanje menija…',
+]
+
+function u(s) {
+  return locale.value === 'sr' ? s : tr('ui', locale.value, 'sr', s)
+}
+
+watch(
+  locale,
+  () => {
+    if (locale.value !== 'sr') ensureTranslation('ui', locale.value, 'sr', UI)
+  },
+  { immediate: true }
+)
+
 const categories = computed(() =>
   translated.value
     ? rawCategories.value.map((c) => ({ ...c, name: TR(c.name) }))
@@ -974,7 +1014,7 @@ onMounted(loadRestaurant)
 </script>
 
 <template>
-  <Loader v-if="loading" text="Učitavanje menija…" />
+  <Loader v-if="loading" :text="u('Učitavanje menija…')" />
 
   <!-- ── lokal ne postoji ─────────────────────────────── -->
   <div v-else-if="notFound || !rest" class="msg-page">
@@ -1029,8 +1069,8 @@ onMounted(loadRestaurant)
           </button>
           <span v-if="rest.city" class="meta">📍 {{ rest.city }}</span>
           <span v-if="rest.hours" class="meta">🕒 {{ rest.hours }}</span>
-          <span v-if="supportsDelivery(rest)" class="meta">🛵 Dostava</span>
-          <span v-if="supportsDinein(rest)" class="meta">🍽️ U lokalu</span>
+          <span v-if="supportsDelivery(rest)" class="meta">🛵 {{ u('Dostava') }}</span>
+          <span v-if="supportsDinein(rest)" class="meta">🍽️ {{ u('U lokalu') }}</span>
         </div>
 
         <div class="hero-actions">
@@ -1063,6 +1103,19 @@ onMounted(loadRestaurant)
         <strong class="truncate bar-name">{{ rest.name }}</strong>
         <input v-model="search" class="input search" :placeholder="t('search')" />
 
+        <!-- Zvonce stoji uz korpu: tu je uvek na oku i kad zaglavlje
+             odskroluje, a gost ga traži baš u traci. -->
+        <button
+          v-if="canCallWaiter"
+          class="bar-bell"
+          :class="[callingWaiter && 'btn-spin', waiterCalled && 'called']"
+          :disabled="callingWaiter || waiterCalled"
+          :aria-label="waiterCalled ? t('waiterCalled') : t('callWaiter')"
+          @click="callWaiter"
+        >
+          {{ waiterCalled ? '✅' : '🔔' }}
+        </button>
+
         <!-- Korpa je uvek na istom mestu, i kad je prazna — gost ne
              sme ni na trenutak da se pita gde mu je porudžbina. -->
         <button
@@ -1085,15 +1138,15 @@ onMounted(loadRestaurant)
         {{ t('paused') }}
       </div>
       <div v-else-if="orderType === 'dinein' && tableLabel" class="strip strip-ok">
-        🪑 Sto <strong>{{ tableLabel }}</strong>
+        🪑 {{ u('Sto') }} <strong>{{ tableLabel }}</strong>
         <template v-if="zoneName"> · {{ zoneName }}</template>
-        <button class="strip-btn" @click="tablePicker = true">promeni</button>
+        <button class="strip-btn" @click="tablePicker = true">{{ u('promeni') }}</button>
       </div>
 
       <!-- Kategorije žive u istoj lepljivoj traci — inače bi se dve
            lepljive trake preklapale i trebalo bi pogađati visinu. -->
       <nav v-if="showTabs" class="tabs">
-        <button class="tab" :class="{ on: !activeCat }" @click="goCat('')">Sve</button>
+        <button class="tab" :class="{ on: !activeCat }" @click="goCat('')">{{ u('Sve') }}</button>
         <button
           v-for="c in sections"
           :key="c.id"
@@ -1116,7 +1169,7 @@ onMounted(loadRestaurant)
         @click="chooseMode(m)"
       >
         <span>{{ m === 'dinein' ? '🍽️' : m === 'takeaway' ? '🛍️' : '🛵' }}</span>
-        {{ m === 'dinein' ? t('dineIn') : m === 'takeaway' ? 'Za poneti' : t('deliveryTitle') }}
+        {{ m === 'dinein' ? t('dineIn') : m === 'takeaway' ? u('Za poneti') : t('deliveryTitle') }}
       </button>
     </div>
 
@@ -1142,7 +1195,7 @@ onMounted(loadRestaurant)
             />
           </div>
           <p v-else class="muted center" style="padding: var(--s6)">
-            Ništa nije pronađeno za „{{ search }}“.
+            {{ u('Ništa nije pronađeno') }} — „{{ search }}“.
           </p>
         </section>
 
@@ -1222,10 +1275,10 @@ onMounted(loadRestaurant)
                 {{ fmtRating(rating.avg) }} od 5 · {{ rating.count }}
                 {{ rating.count === 1 ? 'ocena' : 'ocena' }}
                 <template v-if="rating.verified">
-                  · {{ rating.verified }} sa potvrđenom porudžbinom
+                  · {{ rating.verified }} {{ u('sa potvrđenom porudžbinom') }}
                 </template>
               </p>
-              <p v-else class="small muted">Budite prvi koji će ostaviti utisak.</p>
+              <p v-else class="small muted">{{ u('Budite prvi koji će ostaviti utisak.') }}</p>
             </div>
             <button class="btn btn-outline btn-sm" @click="reviewOpen = true">{{ t('leaveReview') }}</button>
           </div>
@@ -1261,7 +1314,7 @@ onMounted(loadRestaurant)
               class="btn btn-soft btn-block"
               @click="shownReviews += 6"
             >
-              Prikaži još utisaka ({{ reviews.length - shownReviews }})
+              {{ u('Prikaži još utisaka') }} ({{ reviews.length - shownReviews }})
             </button>
           </div>
 
@@ -1271,7 +1324,7 @@ onMounted(loadRestaurant)
               Još nema utisaka. Ako ste bili kod nas, napišite par reči — pomaže i nama i gostima
               koji tek biraju.
             </p>
-            <button class="btn btn-primary btn-sm" @click="reviewOpen = true">Ostavi prvi utisak</button>
+            <button class="btn btn-primary btn-sm" @click="reviewOpen = true">{{ u('Ostavi prvi utisak') }}</button>
           </div>
         </section>
 
@@ -1299,7 +1352,7 @@ onMounted(loadRestaurant)
               #{{ activeOrder.code }}
               <template v-if="activeOrder.type === 'takeaway' && activeOrder.pickup">
                 · preuzimanje
-                {{ activeOrder.pickup.mode === 'time' ? activeOrder.pickup.time : 'što pre' }}
+                {{ activeOrder.pickup.mode === 'time' ? activeOrder.pickup.time : u('što pre') }}
               </template>
             </span>
           </span>
@@ -1314,7 +1367,7 @@ onMounted(loadRestaurant)
         <button v-if="count && !checkout && !closed" class="cartbar" @click="checkout = true">
           <span class="cb-count">{{ count }}</span>
           <span class="grow truncate">{{ money(total, cur) }}</span>
-          <span class="cb-go">Završi porudžbinu →</span>
+          <span class="cb-go">{{ u('Završi porudžbinu') }} →</span>
         </button>
       </Transition>
     </div>
@@ -1356,12 +1409,12 @@ onMounted(loadRestaurant)
       </div>
 
       <p v-if="detail.allergens?.length" class="note note-warn xs">
-        ⚠️ Sadrži alergene: {{ detail.allergens.join(', ') }}
+        ⚠️ {{ u('Sadrži alergene') }}: {{ detail.allergens.join(', ') }}
       </p>
 
       <div class="field">
-        <label class="label">Napomena za kuhinju</label>
-        <input v-model="detailNote" class="input" placeholder="npr. bez luka, dobro pečeno…" />
+        <label class="label">{{ u('Napomena za kuhinju') }}</label>
+        <input v-model="detailNote" class="input" :placeholder="u('npr. bez luka, dobro pečeno…')" />
       </div>
 
       <template #foot>
@@ -1397,11 +1450,11 @@ onMounted(loadRestaurant)
           :brand-color="brand"
           @select="pickTable"
         />
-        <p class="hint center">Dodirnite sto za kojim sedite.</p>
+        <p class="hint center">{{ u('Dodirnite sto za kojim sedite.') }}</p>
       </template>
 
       <div class="field">
-        <label class="label">{{ tables.length ? 'Ili upišite broj stola' : 'Broj stola' }}</label>
+        <label class="label">{{ tables.length ? u('Ili upišite broj stola') : u('Broj stola') }}</label>
         <input
           v-model="tableLabel"
           class="input"
@@ -1733,10 +1786,10 @@ onMounted(loadRestaurant)
       </Transition>
       <Transition name="sheet">
         <div v-if="langOpen" class="lang-sheet" :style="themeVars">
-          <h4>Izaberite jezik</h4>
+          <h4>{{ u('Izaberite jezik') }}</h4>
           <!-- Gost treba da zna da meni nije preveo čovek — očekivanja
                su tako poštena, a greška u prevodu nikoga ne iznenadi. -->
-          <p class="lang-note">Meni i utisci se prevode automatski.</p>
+          <p class="lang-note">{{ u('Meni i utisci se prevode automatski.') }}</p>
           <div class="lang-grid">
             <button
               v-for="(l, code) in LOCALES"
@@ -2110,6 +2163,27 @@ onMounted(loadRestaurant)
   height: 36px;
   min-width: 0;
 }
+.bar-bell {
+  width: 40px;
+  height: 36px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 1.05rem;
+  transition: all var(--fast);
+}
+.bar-bell:hover {
+  border-color: var(--b);
+}
+.bar-bell.called {
+  background: var(--tint-ok);
+  border-color: var(--tint-ok);
+  opacity: 1;
+}
+
 .cart-btn {
   position: relative;
   width: 40px;

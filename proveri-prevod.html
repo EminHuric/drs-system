@@ -1,0 +1,73 @@
+<!doctype html>
+<!--
+  Provera prevoda u pravom pregledaču.
+
+  Firebase AI Logic traži kontekst pregledača (Firebase Installations),
+  pa iz Node-a poziv uvek padne na App Check i ništa se ne zaključuje.
+  Ova stranica se otvara preko dev servera:
+
+      npm run dev
+      http://localhost:5173/proveri-prevod.html
+
+  Ispisuje ili prevod ili tačan razlog zašto ga nema.
+-->
+<html lang="sr">
+  <head>
+    <meta charset="utf-8" />
+    <title>RDS — provera prevoda</title>
+    <style>
+      body { font: 15px/1.6 system-ui, sans-serif; padding: 24px; max-width: 720px; }
+      pre { background: #f4f4f6; padding: 14px; border-radius: 10px; white-space: pre-wrap; }
+      .ok { color: #1a7f4b; } .bad { color: #c0392b; }
+    </style>
+  </head>
+  <body>
+    <h1>Provera prevoda menija</h1>
+    <pre id="out">Radi se…</pre>
+
+    <script type="module">
+      const out = document.getElementById('out')
+      const uzorak = ['Pljeskavica', 'Ljuto', 'Pršut i sir', 'Domaća limunada sa nanom']
+
+      // Kad se stranica otvori sa ?report=PORT, rezultat se javi i
+      // skripti koja je pokrenula pregledač — obična slika, bez CORS-a.
+      function javi(tekst) {
+        const port = new URLSearchParams(location.search).get('report')
+        if (port) new Image().src = `http://localhost:${port}/?r=${encodeURIComponent(tekst)}`
+      }
+
+      try {
+        const { ensure, tr } = await import('/src/lib/translate.js')
+        await ensure('proba', 'en', 'sr', uzorak)
+
+        const redovi = uzorak.map((s) => `${s}  →  ${tr('proba', 'en', 'sr', s)}`)
+        const preveden = uzorak.some((s) => tr('proba', 'en', 'sr', s) !== s)
+
+        out.className = preveden ? 'ok' : 'bad'
+        out.textContent =
+          (preveden ? 'REZULTAT: PREVOD RADI\n\n' : 'REZULTAT: PREVOD NE RADI (vraćen original)\n\n') +
+          redovi.join('\n')
+      } catch (e) {
+        out.className = 'bad'
+        out.textContent = 'REZULTAT: GREŠKA\n\n' + (e?.message || String(e))
+      }
+
+      // Kad prevod ne radi, `ensure` proguta razlog da meni ne bi pao.
+      // Ovde se model zove direktno, samo da se vidi šta tačno kaže.
+      if (out.className === 'bad') {
+        try {
+          const { getAI, getGenerativeModel, GoogleAIBackend } = await import('firebase/ai')
+          const { app } = await import('/src/firebase.js')
+          const ai = getAI(app, { backend: new GoogleAIBackend() })
+          const m = getGenerativeModel(ai, { model: 'gemini-2.5-flash-lite' })
+          const r = await m.generateContent('Reci samo: radi')
+          out.textContent += '\n\nDirektan poziv modela: ' + r.response.text().trim()
+        } catch (e2) {
+          out.textContent += '\n\nRAZLOG:\n' + (e2?.message || String(e2))
+        }
+      }
+
+      javi(out.textContent)
+    </script>
+  </body>
+</html>

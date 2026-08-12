@@ -113,7 +113,15 @@
       "Bash(node pay.cjs)",
       "Bash(node gost.cjs)",
       "Bash(curl -s \"http://localhost:5173/src/views/panel/PanelSettings.vue\")",
-      "Bash(curl -s \"http://localhost:5173/src/lib/translate.js\" -o /dev/null -w \"%{http_code} translate.js\\\\n\")"
+      "Bash(curl -s \"http://localhost:5173/src/lib/translate.js\" -o /dev/null -w \"%{http_code} translate.js\\\\n\")",
+      "Bash(node proveri-prevod.mjs)",
+      "Bash(\"C:/Program Files/Google/Chrome/Application/chrome.exe\" --headless --disable-gpu --virtual-time-budget=25000 --dump-dom \"http://localhost:5173/proveri-prevod.html\")",
+      "Bash(node probaj.cjs)",
+      "Bash(awk '/^<template>/,/^<\\\\/template>/' src/views/guest/GuestApp.vue)",
+      "Bash(node sve.cjs)",
+      "Bash(rm -rf chrome-profil)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:5173/proveri-prevod.html\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:5173/src/lib/translate.js\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",

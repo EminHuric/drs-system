@@ -1,29 +1,32 @@
 // ═══════════════════════════════════════════════════════════════
 //  Prevod sadržaja koji je vlasnik uneo
 //
-//  Naša dugmad i poruke prevodi lib/i18n.js — one su unapred
+//  Našu dugmad i poruke prevodi lib/i18n.js — one su unapred
 //  napisane na šest jezika. Ali naziv jela, opis, sastojci, oznake
 //  i utisci gostiju su tekst koji vlasnik kuca sam; njih niko
 //  unapred ne može da prevede.
 //
-//  Zato ovde ide mašinski prevod preko istog Gemini modela koji već
-//  pokreće pomoćnika gostu — bez ključa u kodu i bez servera, jer
-//  Firebase AI Logic radi na besplatnom planu.
+//  Prevod ide preko tri izvora, redom, dok jedan ne uspe:
+//
+//   1. Gemini (Firebase AI Logic) — najbolji za meni, jer razume da
+//      prevodi hranu. Radi samo ako je u Firebase konzoli podešen
+//      App Check; ako nije, vraća 401 i preskače se.
+//   2. Google prevodilac — javni krajnji tačka bez ključa. Radi iz
+//      pregledača i pokriva sve naše jezike.
+//   3. MyMemory — poslednja mreža za hvatanje.
 //
 //  Pravila kojih se držimo:
-//   • Prevod nikad ne sme da obori meni. Ako AI nije dostupan,
+//   • Prevod nikad ne sme da obori meni. Ako nijedan izvor ne radi,
 //     gost vidi original i ne dobija nijednu poruku o grešci.
 //   • Svaki string se prevodi jednom po jeziku i pamti u pregledaču,
 //     pa drugi dolazak na meni ne troši ništa.
-//   • Traži se JSON, ne slobodan tekst — model tako ne može da
-//     „doda objašnjenje" umesto prevoda.
 // ═══════════════════════════════════════════════════════════════
 
 import { reactive } from 'vue'
 import { LOCALES } from './i18n'
 
 const STORE = 'rds.tr.'
-const CHUNK = 40 // koliko stringova ide u jedan zahtev
+const CHUNK = 24 // koliko stringova ide u jedan zahtev
 const MAX_LEN = 900 // duži tekst od ovoga se ne prevodi (utisak-roman)
 
 // Rečnici po lokalu i jeziku: { 'rid:en': { 'Pljeskavica': 'Beef patty' } }
@@ -32,8 +35,9 @@ const dicts = reactive({})
 // Šta je već poslato, da isti string ne krene dvaput dok prvi traje.
 const inFlight = new Set()
 
+let geminiOff = false
+let allOff = false
 let model = null
-let state = 'unknown' // unknown | ready | off
 
 function key(rid, locale) {
   return rid + ':' + locale
@@ -70,6 +74,8 @@ export function tr(rid, locale, from, text) {
   if (!s || !rid || !locale || locale === from) return s
   return dict(rid, locale)[s] || s
 }
+
+// ─── izvor 1: Gemini ────────────────────────────────────────────
 
 async function getModel() {
   if (model) return model
@@ -121,6 +127,81 @@ function parseList(raw, expected) {
   return data.map((x) => (typeof x === 'string' ? x : String(x ?? '')))
 }
 
+async function viaGemini(list, from, to) {
+  if (geminiOff) return null
+  try {
+    const m = await getModel()
+    const res = await m.generateContent(
+      prompt(list, LOCALES[from]?.name || from, LOCALES[to]?.name || to)
+    )
+    const out = parseList(res.response.text(), list.length)
+    if (!out) return null
+    return out
+  } catch (e) {
+    // Najčešće: App Check nije podešen u Firebase konzoli (401).
+    // Ne ponavlja se — dalje idu ostali izvori.
+    console.warn('[RDS] Gemini prevod nije dostupan, ide rezervni izvor.', e?.message || e)
+    geminiOff = true
+    return null
+  }
+}
+
+// ─── izvor 2: Google prevodilac ─────────────────────────────────
+//
+// Javna tačka bez ključa. Prima ceo blok teksta, pa se stavke šalju
+// razdvojene praznim redom i tako se vraćaju — ako se broj delova ne
+// poklopi, batch se odbacuje i ide sledeći izvor. Bolje ništa nego
+// pomeren prevod, gde bi cena stajala uz pogrešno jelo.
+
+const SEP = '\n@@@\n'
+
+async function viaGoogle(list, from, to) {
+  const url =
+    'https://translate.googleapis.com/translate_a/single?client=gtx' +
+    `&sl=${encodeURIComponent(from)}&tl=${encodeURIComponent(to)}&dt=t&q=` +
+    encodeURIComponent(list.join(SEP))
+
+  const res = await fetch(url)
+  if (!res.ok) throw new Error('google ' + res.status)
+
+  const data = await res.json()
+  if (!Array.isArray(data?.[0])) return null
+
+  const joined = data[0].map((seg) => seg?.[0] || '').join('')
+  const parts = joined.split(/\s*@@@\s*/).map((s) => s.trim())
+  if (parts.length !== list.length) return null
+  return parts
+}
+
+// ─── izvor 3: MyMemory ──────────────────────────────────────────
+
+async function viaMyMemory(list, from, to) {
+  const out = []
+  for (const s of list) {
+    const url =
+      'https://api.mymemory.translated.net/get?q=' +
+      encodeURIComponent(s) +
+      `&langpair=${encodeURIComponent(from)}|${encodeURIComponent(to)}`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('mymemory ' + res.status)
+    const data = await res.json()
+    out.push(String(data?.responseData?.translatedText || s))
+  }
+  return out
+}
+
+async function translateBatch(list, from, to) {
+  for (const source of [viaGemini, viaGoogle, viaMyMemory]) {
+    try {
+      const out = await source(list, from, to)
+      if (out && out.length === list.length) return out
+    } catch (e) {
+      console.warn('[RDS] Izvor prevoda nije uspeo, ide sledeći.', e?.message || e)
+    }
+  }
+  return null
+}
+
 /**
  * Prevede sve što još nije prevedeno. Poziva se kad gost promeni jezik
  * ili kad vlasnik doda jelo dok je meni otvoren.
@@ -129,7 +210,7 @@ function parseList(raw, expected) {
  * pogledi koji čitaju `tr()` se osveže jer je rečnik reaktivan.
  */
 export async function ensure(rid, locale, from, strings) {
-  if (!rid || !locale || locale === from || state === 'off') return
+  if (!rid || !locale || locale === from || allOff) return
 
   const d = dict(rid, locale)
   const k = key(rid, locale)
@@ -145,43 +226,34 @@ export async function ensure(rid, locale, from, strings) {
   }
   if (!missing.length) return
 
-  const fromName = LOCALES[from]?.name || 'Srpski'
-  const toName = LOCALES[locale]?.name || locale
-
   for (let i = 0; i < missing.length; i += CHUNK) {
     const batch = missing.slice(i, i + CHUNK)
     batch.forEach((s) => inFlight.add(k + '|' + s))
 
-    try {
-      const m = await getModel()
-      const res = await m.generateContent(prompt(batch, fromName, toName))
-      const out = parseList(res.response.text(), batch.length)
+    const out = await translateBatch(batch, from, locale)
 
-      if (out) {
-        // Novi objekat, da Vue primeti promenu i osveži meni.
-        const next = { ...dicts[k] }
-        batch.forEach((s, j) => {
-          const v = out[j]?.trim()
-          if (v) next[s] = v
-        })
-        dicts[k] = next
-        write(k, next)
-        state = 'ready'
-      }
-    } catch (e) {
-      // Nije uključen u konzoli, nema kvote ili nema mreže. Gost i
-      // dalje vidi meni, samo na izvornom jeziku.
-      console.warn('[RDS] Prevod menija nije dostupan.', e?.message || e)
-      state = 'off'
-      batch.forEach((s) => inFlight.delete(k + '|' + s))
+    if (out) {
+      // Novi objekat, da Vue primeti promenu i osveži meni.
+      const next = { ...dicts[k] }
+      batch.forEach((s, j) => {
+        const v = out[j]?.trim()
+        if (v) next[s] = v
+      })
+      dicts[k] = next
+      write(k, next)
+    }
+
+    batch.forEach((s) => inFlight.delete(k + '|' + s))
+
+    // Nijedan izvor ne radi — nema svrhe daviti mrežu ostatkom menija.
+    if (!out) {
+      allOff = true
       return
-    } finally {
-      batch.forEach((s) => inFlight.delete(k + '|' + s))
     }
   }
 }
 
 /** Da li je prevod uopšte moguć — za sitnu napomenu gostu. */
 export function translatorOff() {
-  return state === 'off'
+  return allOff
 }
