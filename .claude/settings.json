@@ -139,7 +139,8 @@
       "Bash(cp proveri-brzinu.html dist/)",
       "Bash(npx vite *)",
       "Bash(node greska.cjs \"http://localhost:4173/proveri-brzinu.html?slug=emin1&report=5199\")",
-      "Bash(cd \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad\" && node kes.cjs && cd \"c:/Users/Emin/Desktop/Programs/restaurant-orders\" && node -e \" *)"
+      "Bash(cd \"C:/Users/Emin/AppData/Local/Temp/claude/c--Users-Emin-Desktop-Programs-restaurant-orders/e8fbb1b0-df87-4d90-9058-4518d1679546/scratchpad\" && node kes.cjs && cd \"c:/Users/Emin/Desktop/Programs/restaurant-orders\" && node -e \" *)",
+      "Bash(node proveri-porudzbinu.mjs)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Emin\\Desktop\\Programs\\restaurant-orders\\src\\composables",

@@ -49,8 +49,17 @@ const rest = ref(venueFromCache(route.params.slug))
 const ready = ref(false)
 const missing = ref(false)
 
+// Sesija mora da postoji PRE nego sto se slusalac zakaci. Pravila
+// porudzbinu vezuju za gosta koji ju je napravio, pa bi slusalac
+// pokrenut prerano pukao na dozvolama — i vise se ne bi oporavio.
+// Gost bi zauvek gledao „ceka potvrdu" iako je konobar odavno
+// prihvatio.
+const sessionReady = ref(false)
+
 const orderRef = computed(() =>
-  rest.value ? doc(db, 'restaurants', rest.value.id, 'orders', route.params.orderId) : null
+  rest.value && sessionReady.value
+    ? doc(db, 'restaurants', rest.value.id, 'orders', route.params.orderId)
+    : null
 )
 const { data: liveOrder, loading, error } = useLiveDoc(orderRef)
 
@@ -120,6 +129,7 @@ async function load() {
     // Porudžbina se ne sme čitati pre sesije — pravila po njoj
     // prepoznaju da je baš ovaj gost napravio ovu porudžbinu.
     await session
+    sessionReady.value = true
   } catch (e) {
     console.error(e)
     missing.value = true
@@ -245,7 +255,8 @@ onMounted(load)
         <!-- Dok ne potvrde, gost treba da zna dve stvari: da je stiglo
              i da ce mu se javiti ovde ako nesto ne bude moglo. -->
         <p v-if="order.status === 'new'" class="muted small">
-          Osoblje je već vidi. Sačekajte potvrdu — ako nešto ne bude moglo, javiće vam ovde.
+          Porudžbina je stigla osoblju. Molimo vas sačekajte potvrdu — javićemo vam ovde,
+          a možete slobodno da se vratite na meni.
         </p>
         <p v-else-if="!finished && eta" class="muted small">Procenjeno vreme: oko {{ eta }} minuta</p>
         <p v-if="cancelled && order.cancelReason" class="small muted">
@@ -374,11 +385,14 @@ onMounted(load)
           📞 Pozovi lokal
         </a>
 
+        <!-- Gost ne mora da stoji nad ovim ekranom dok ceka. Traka sa
+             statusom ga prati po celom meniju, pa se moze vratiti i
+             dalje birati. -->
         <RouterLink
           :to="{ name: 'guest', params: { slug: route.params.slug } }"
-          class="btn btn-ghost btn-block"
+          class="btn btn-soft btn-block"
         >
-          Nazad na meni
+          ← Nazad na meni
         </RouterLink>
       </div>
 

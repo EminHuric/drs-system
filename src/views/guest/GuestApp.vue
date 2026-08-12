@@ -12,7 +12,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
-import { useRoute, useRouter, RouterLink } from 'vue-router'
+import { useRoute, RouterLink } from 'vue-router'
 import {
   addDoc,
   collection,
@@ -25,7 +25,7 @@ import {
 } from 'firebase/firestore'
 import { db, firebaseReady } from '@/firebase'
 import { ensureGuestSession, user } from '@/stores/auth'
-import { useLiveCollection } from '@/composables/useLive'
+import { useLiveCollection, useTicker } from '@/composables/useLive'
 import { useCart } from '@/composables/useCart'
 import FloorPlan from '@/components/FloorPlan.vue'
 import Modal from '@/components/ui/Modal.vue'
@@ -48,13 +48,13 @@ import { supportsDelivery, supportsDinein, supportsTakeaway } from '@/lib/restau
 import { loadVenue } from '@/lib/venueCache'
 import { fastMenu } from '@/lib/fastRead'
 import { rememberOrder } from '@/lib/orderCache'
+import OrderSheet from '@/components/OrderSheet.vue'
 import { themeStyle } from '@/lib/themes'
 import { useVenueTheme } from '@/composables/useVenueTheme'
 import { LOCALES, applyRestaurantLocale, currentLocale, locale, setLocale, t } from '@/lib/i18n'
 import { ensure as ensureTranslation, tr } from '@/lib/translate'
 
 const route = useRoute()
-const router = useRouter()
 
 // ═══ lokal ════════════════════════════════════════════════════
 
@@ -325,10 +325,24 @@ const myOrdersQuery = computed(() =>
 
 const { items: myOrders } = useLiveCollection(myOrdersQuery)
 
+// Porudžbina koju je gost upravo poslao. Do baze i nazad prođe oko
+// sekunde, a traka mora da se pojavi istog trenutka — inače izgleda
+// kao da se ništa nije desilo.
+// Otkucava da bi „poslato pre 2 minuta" ostajalo tacno dok gost gleda.
+const now = useTicker(15000)
+
+const justSent = ref(null)
+
 const activeOrder = computed(() => {
   const live = myOrders.value
     .filter((o) => LIVE_STATUSES.includes(o.status) && o.kind !== 'call')
     .sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0))
+
+  // Čim ista porudžbina stigne sa servera, ona preuzima — od tada je
+  // status uživo i sam se menja kad ga osoblje pomeri.
+  const saServera = live.find((o) => o.id === justSent.value?.id)
+  if (saServera) return saServera
+  if (justSent.value) return justSent.value
   return live[0] || null
 })
 
@@ -343,11 +357,18 @@ const hasReply = computed(() => {
   }
 })
 
+const myOrderOpen = ref(false)
+
 function openMyOrder() {
-  router.push({
-    name: 'guest-order',
-    params: { slug: route.params.slug, orderId: activeOrder.value.id },
-  })
+  myOrderOpen.value = true
+  // Dodir na traku znači da je gost video odgovor osoblja.
+  const o = activeOrder.value
+  if (!o) return
+  try {
+    localStorage.setItem(`rds.seen.${o.id}`, String(Date.now()))
+  } catch {
+    /* privatni režim */
+  }
 }
 
 // ═══ ocene ════════════════════════════════════════════════════
@@ -761,8 +782,6 @@ async function submit() {
 
     const ref_ = await addDoc(collection(db, 'restaurants', rid.value, 'orders'), payload)
 
-    // Ekran pracenja ovu porudzbinu vec ima — ne mora da je ceka nazad
-    // sa servera da bi gostu rekao da je poslata.
     rememberOrder(ref_.id, { ...payload, id: ref_.id, createdAt: new Date() })
 
     saveGuest()
@@ -770,13 +789,12 @@ async function submit() {
     cart.value.clear()
     checkout.value = false
 
-    // Porudžbina je u sistemu i osoblje je vidi u panelu — to je jedini
-    // put kojim ide. WhatsApp se više ne otvara sam: gost je pritisnuo
-    // „Pošalji" i očekuje potvrdu, a ne skok u drugu aplikaciju.
-    router.push({
-      name: 'guest-order',
-      params: { slug: route.params.slug, orderId: ref_.id },
-    })
+    // Gost ostaje tu gde je bio — u meniju. Traka dole odmah pokazuje
+    // da je porudžbina poslata, a dodir na nju otvara sve detalje.
+    // Odlazak na posebnu stranicu je značio prazan ekran i osećaj da
+    // je izašao iz lokala, a on je i dalje za istim stolom.
+    justSent.value = { ...payload, id: ref_.id, createdAt: new Date() }
+    myOrderOpen.value = true
   } catch (e) {
     formError.value = guestError(e)
   } finally {
@@ -951,12 +969,10 @@ async function submitReservation() {
 
     resOpen.value = false
 
-    router.push({
-      name: 'guest-order',
-      params: { slug: route.params.slug, orderId: ref_.id },
-    })
-
-    // Rezervacija je uvek za sto u lokalu — ne ide na WhatsApp.
+    // Isto kao kod porudžbine: gost ostaje u meniju, a rezervacija mu
+    // stoji dole u traci dok je lokal ne potvrdi.
+    justSent.value = { ...payload, id: ref_.id, createdAt: new Date() }
+    myOrderOpen.value = true
   } catch (e) {
     resError.value = guestError(e)
   } finally {
@@ -1836,6 +1852,16 @@ onMounted(loadRestaurant)
         </div>
       </Transition>
     </Teleport>
+
+    <!-- ── moja porudžbina ────────────────────────────── -->
+    <OrderSheet
+      v-if="myOrderOpen && activeOrder"
+      :order="activeOrder"
+      :restaurant-id="rid"
+      :restaurant="rest"
+      :now="now"
+      @close="myOrderOpen = false"
+    />
 
     <PhotoViewer v-if="viewer" :photos="viewer.photos" :start="viewer.index" @close="viewer = null" />
   </div>
